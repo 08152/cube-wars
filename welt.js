@@ -17,9 +17,9 @@ export class Welt {
         this.createOcean();
     }
 
-    // --------------------------------------------------
+    // ==========================================
     // TEXTUREN
-    // --------------------------------------------------
+    // ==========================================
 
     loadTextures() {
         const files = {
@@ -33,13 +33,23 @@ export class Welt {
         for (const [name, path] of Object.entries(files)) {
             const texture = this.textureLoader.load(
                 path,
-                () => console.log("Textur geladen:", name),
+                () => {
+                    console.log("CUBE WARS: Textur geladen:", name);
+                    texture.needsUpdate = true;
+                },
                 undefined,
-                () => console.error("Textur fehlt:", path)
+                (error) => {
+                    console.error(
+                        "CUBE WARS: Textur konnte nicht geladen werden:",
+                        path,
+                        error
+                    );
+                }
             );
 
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.RepeatWrapping;
+
             texture.colorSpace = THREE.SRGBColorSpace;
             texture.anisotropy = 8;
 
@@ -47,16 +57,21 @@ export class Welt {
         }
     }
 
-    // --------------------------------------------------
-    // HILFSFUNKTIONEN
-    // --------------------------------------------------
+    // ==========================================
+    // MATHEMATIK
+    // ==========================================
 
     clamp(value, min, max) {
         return Math.max(min, Math.min(max, value));
     }
 
     smoothstep(a, b, value) {
-        const t = this.clamp((value - a) / (b - a), 0, 1);
+        const t = this.clamp(
+            (value - a) / (b - a),
+            0,
+            1
+        );
+
         return t * t * (3 - 2 * t);
     }
 
@@ -69,9 +84,9 @@ export class Welt {
         );
     }
 
-    // --------------------------------------------------
-    // INSELFORM
-    // --------------------------------------------------
+    // ==========================================
+    // INSEL
+    // ==========================================
 
     distanceToIsland(x, z) {
         const angle = Math.atan2(z, x);
@@ -100,33 +115,96 @@ export class Welt {
         return this.distanceToIsland(x, z) < 1.02;
     }
 
-    // --------------------------------------------------
-    // BERGE UND HÜGEL
-    // --------------------------------------------------
+    // ==========================================
+    // NATÜRLICHE HÜGEL
+    // ==========================================
 
-    mountain(x, z, cx, cz, rx, rz, height) {
-        const dx = (x - cx) / rx;
-        const dz = (z - cz) / rz;
+    roundedHill(x, z, cx, cz, radiusX, radiusZ, height) {
+        const dx = (x - cx) / radiusX;
+        const dz = (z - cz) / radiusZ;
 
         const distance = Math.sqrt(dx * dx + dz * dz);
-        const irregular = this.noise(x * 1.4, z * 1.4) * 0.12;
 
-        const shape = Math.max(0, 1 - distance + irregular);
+        const irregular =
+            this.noise(x * 1.3, z * 1.3) * 0.08;
+
+        const shape = Math.max(
+            0,
+            1 - distance + irregular
+        );
 
         return height * shape * shape;
     }
 
-    hills(x, z) {
+    rollingHills(x, z) {
         return (
-            Math.sin(x * 0.014 + z * 0.006) * 4 +
-            Math.cos(z * 0.019 - x * 0.008) * 3 +
-            this.noise(x, z) * 5
+            Math.sin(x * 0.012 + z * 0.004) * 2.8 +
+            Math.cos(z * 0.014 - x * 0.006) * 2.2 +
+            Math.sin(x * 0.026 + z * 0.019) * 0.8 +
+            this.noise(x, z) * 2.2
         );
     }
 
-    // --------------------------------------------------
-    // LANDSCHAFTSHÖHE
-    // --------------------------------------------------
+    // ==========================================
+    // FLUSSBETTEN
+    // ==========================================
+
+    getRiverData(x, z) {
+        // Hauptfluss: lang und leicht geschwungen.
+        const mainRiverPath =
+            Math.sin(x * 0.008) * 48 +
+            Math.sin(x * 0.019) * 12 -
+            25;
+
+        const mainDistance = Math.abs(z - mainRiverPath);
+
+        // Zweiter Flussarm.
+        const branchPath =
+            -Math.sin((x + 90) * 0.009) * 34 +
+            105;
+
+        const branchDistance = Math.abs(z - branchPath);
+
+        // Kleiner Nebenfluss.
+        const smallPath =
+            Math.sin((x - 110) * 0.014) * 19 -
+            135;
+
+        const smallDistance = Math.abs(z - smallPath);
+
+        const main = 1 - this.smoothstep(
+            4,
+            17,
+            mainDistance
+        );
+
+        const branch = 1 - this.smoothstep(
+            3,
+            11,
+            branchDistance
+        );
+
+        const small = 1 - this.smoothstep(
+            2.5,
+            8,
+            smallDistance
+        );
+
+        return {
+            main,
+            branch,
+            small,
+            combined: Math.max(
+                main,
+                branch * 0.8,
+                small * 0.65
+            )
+        };
+    }
+
+    // ==========================================
+    // GELÄNDEHÖHE
+    // ==========================================
 
     getHeightAt(x, z) {
         const island = this.islandMask(x, z);
@@ -137,72 +215,90 @@ export class Welt {
 
         let height = 5;
 
-        // Grundlandschaft
-        height += this.hills(x, z);
+        // Sanfte Grundlandschaft.
+        height += this.rollingHills(x, z);
 
-        // Große Bergketten
-        height += this.mountain(x, z, -100, -45, 105, 120, 66);
-        height += this.mountain(x, z, 35, 95, 90, 95, 47);
-        height += this.mountain(x, z, 135, -100, 75, 85, 35);
-        height += this.mountain(x, z, -180, 85, 55, 75, 27);
+        // Breite, abgerundete Hügel.
+        height += this.roundedHill(
+            x, z, -105, -35, 115, 95, 17
+        );
 
-        // Weitere kleinere Berggruppen
-        height += this.mountain(x, z, 15, -170, 55, 48, 19);
-        height += this.mountain(x, z, -190, -125, 45, 48, 17);
-        height += this.mountain(x, z, 185, 100, 42, 55, 15);
+        height += this.roundedHill(
+            x, z, 55, 105, 105, 95, 13
+        );
 
-        // Bergstruktur
-        const ridge =
-            Math.abs(Math.sin(x * 0.035 + z * 0.019)) *
-            Math.abs(Math.cos(z * 0.026));
+        height += this.roundedHill(
+            x, z, 145, -100, 85, 90, 12
+        );
 
-        height += ridge * 5;
+        height += this.roundedHill(
+            x, z, -190, 95, 65, 70, 10
+        );
 
-        // Täler
-        const valley =
-            Math.sin(x * 0.011 + 1.2) * 25 +
-            Math.cos(x * 0.006) * 12;
+        height += this.roundedHill(
+            x, z, 5, -185, 75, 55, 8
+        );
 
-        const valleyDistance = Math.abs(z - valley);
-        const valleyMask = 1 - this.smoothstep(8, 35, valleyDistance);
+        height += this.roundedHill(
+            x, z, 190, 110, 50, 60, 7
+        );
 
-        height -= valleyMask * 7;
+        // Kleine natürliche Unebenheiten.
+        height += this.noise(x * 1.8, z * 1.8) * 1.3;
 
-        // Flussartige Senke
-        const riverPath = Math.sin(x * 0.012) * 34 + 15;
-        const riverDistance = Math.abs(z - riverPath);
-        const river = 1 - this.smoothstep(4, 15, riverDistance);
+        // Flache Senken für die Flüsse.
+        const rivers = this.getRiverData(x, z);
 
-        height -= river * 4;
+        height -= rivers.main * 2.8;
+        height -= rivers.branch * 2.1;
+        height -= rivers.small * 1.5;
 
-        // Küstenabfall
+        // Breitere, sanfte Flusstäler.
+        height -= rivers.combined * 1.5;
+
+        // Küste: weicher Abfall ins Meer.
         const coast = this.smoothstep(
-            0.83,
+            0.82,
             1.035,
             this.distanceToIsland(x, z)
         );
 
-        height = THREE.MathUtils.lerp(height, -24, coast);
+        height = THREE.MathUtils.lerp(
+            height,
+            -24,
+            coast
+        );
 
-        return THREE.MathUtils.lerp(-24, height, island);
+        return THREE.MathUtils.lerp(
+            -24,
+            height,
+            island
+        );
     }
 
     getGroundHeight(x, z) {
         return this.getHeightAt(x, z);
     }
 
-    // --------------------------------------------------
+    // ==========================================
     // BIOME
-    // --------------------------------------------------
+    // ==========================================
 
     ellipseMask(x, z, cx, cz, rx, rz) {
         const dx = (x - cx) / rx;
         const dz = (z - cz) / rz;
 
-        const distortion = this.noise(x + cx, z + cz) * 0.10;
-        const distance = Math.sqrt(dx * dx + dz * dz) + distortion;
+        const distortion =
+            this.noise(x + cx, z + cz) * 0.10;
 
-        return 1 - this.smoothstep(0.82, 1.08, distance);
+        const distance =
+            Math.sqrt(dx * dx + dz * dz) + distortion;
+
+        return 1 - this.smoothstep(
+            0.82,
+            1.08,
+            distance
+        );
     }
 
     getBiomeAt(x, z) {
@@ -229,9 +325,9 @@ export class Welt {
         return this.getBiomeAt(x, z);
     }
 
-    // --------------------------------------------------
+    // ==========================================
     // TERRAIN ERSTELLEN
-    // --------------------------------------------------
+    // ==========================================
 
     createTerrain() {
         const geometry = new THREE.PlaneGeometry(
@@ -249,7 +345,10 @@ export class Welt {
             const x = positions.getX(i);
             const z = positions.getZ(i);
 
-            positions.setY(i, this.getHeightAt(x, z));
+            positions.setY(
+                i,
+                this.getHeightAt(x, z)
+            );
         }
 
         positions.needsUpdate = true;
@@ -270,9 +369,9 @@ export class Welt {
         this.scene.add(this.terrain);
     }
 
-    // --------------------------------------------------
-    // ECHTE BIOME-TEXTUREN
-    // --------------------------------------------------
+    // ==========================================
+    // TEXTUR-SHADER
+    // ==========================================
 
     createTerrainMaterial() {
         const material = new THREE.MeshStandardMaterial({
@@ -302,6 +401,7 @@ export class Welt {
                 value: this.textures.jungle
             };
 
+            // Vertex-Shader
             shader.vertexShader = shader.vertexShader.replace(
                 "#include <common>",
                 `
@@ -312,18 +412,22 @@ export class Welt {
                 `
             );
 
+            // WICHTIG:
+            // worldPosition wird vom Three.js-Shader bereits erzeugt.
+            // Wir verwenden diese Variable nur, statt sie doppelt anzulegen.
             shader.vertexShader = shader.vertexShader.replace(
-                "#include <begin_vertex>",
+                "#include <worldpos_vertex>",
                 `
-                #include <begin_vertex>
-
-                vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
+                #include <worldpos_vertex>
 
                 vWorldPosition = worldPosition.xyz;
-                vTerrainNormal = normalize(normal);
+                vTerrainNormal = normalize(
+                    mat3(modelMatrix) * normal
+                );
                 `
             );
 
+            // Fragment-Shader
             shader.fragmentShader = shader.fragmentShader.replace(
                 "#include <common>",
                 `
@@ -381,13 +485,61 @@ export class Welt {
 
                     return length(d) / irregularity;
                 }
+
+                float riverMask(vec2 p) {
+                    float mainPath =
+                        sin(p.x * 0.008) * 48.0 +
+                        sin(p.x * 0.019) * 12.0 -
+                        25.0;
+
+                    float branchPath =
+                        -sin((p.x + 90.0) * 0.009) * 34.0 +
+                        105.0;
+
+                    float smallPath =
+                        sin((p.x - 110.0) * 0.014) * 19.0 -
+                        135.0;
+
+                    float mainRiver =
+                        1.0 - smoothstep(
+                            4.0,
+                            17.0,
+                            abs(p.y - mainPath)
+                        );
+
+                    float branchRiver =
+                        1.0 - smoothstep(
+                            3.0,
+                            11.0,
+                            abs(p.y - branchPath)
+                        );
+
+                    float smallRiver =
+                        1.0 - smoothstep(
+                            2.5,
+                            8.0,
+                            abs(p.y - smallPath)
+                        );
+
+                    return max(
+                        mainRiver,
+                        max(
+                            branchRiver * 0.8,
+                            smallRiver * 0.65
+                        )
+                    );
+                }
                 `
             );
 
             shader.fragmentShader = shader.fragmentShader.replace(
                 "#include <map_fragment>",
                 `
-                vec2 worldUV = vWorldPosition.xz * 0.018;
+                // Weltkoordinaten statt kleiner UV-Flächen.
+                vec2 worldXZ = vWorldPosition.xz;
+
+                // Kleinere Zahl = größere Texturmuster.
+                vec2 worldUV = worldXZ * 0.010;
 
                 vec3 grassColor = texture2D(
                     grassMap,
@@ -396,7 +548,7 @@ export class Welt {
 
                 vec3 stoneColor = texture2D(
                     stoneMap,
-                    worldUV * 1.15
+                    worldUV * 0.95
                 ).rgb;
 
                 vec3 sandColor = texture2D(
@@ -414,9 +566,7 @@ export class Welt {
                     worldUV
                 ).rgb;
 
-                // Biome-Grenzen
-                vec2 worldXZ = vWorldPosition.xz;
-
+                // Biome
                 float desertMask = terrainEllipse(
                     worldXZ,
                     vec2(155.0, 105.0),
@@ -435,45 +585,29 @@ export class Welt {
                     vec2(58.0, 48.0)
                 );
 
-                // Übergänge zwischen den Biomen
-                float biomeBlend = 0.035;
-
                 vec3 terrainColor = grassColor;
 
                 terrainColor = mix(
                     terrainColor,
                     sandColor,
-                    smoothstep(
-                        0.0,
-                        biomeBlend,
-                        desertMask
-                    )
+                    smoothstep(0.0, 0.08, desertMask)
                 );
 
                 terrainColor = mix(
                     terrainColor,
                     iceColor,
-                    smoothstep(
-                        0.0,
-                        biomeBlend,
-                        iceMask
-                    )
+                    smoothstep(0.0, 0.08, iceMask)
                 );
 
                 terrainColor = mix(
                     terrainColor,
                     jungleColor,
-                    smoothstep(
-                        0.0,
-                        biomeBlend,
-                        jungleMask
-                    )
+                    smoothstep(0.0, 0.08, jungleMask)
                 );
 
-                // Strand entlang der Küste
-                float islandDistance = terrainIslandDistance(
-                    worldXZ
-                );
+                // Strand an der Küste
+                float islandDistance =
+                    terrainIslandDistance(worldXZ);
 
                 float beachMask =
                     smoothstep(0.78, 0.91, islandDistance) *
@@ -485,25 +619,34 @@ export class Welt {
                     beachMask * 0.9
                 );
 
-                // Felsige Berghänge
+                // Flussbetten erhalten einen sandigen Untergrund.
+                float river = riverMask(worldXZ);
+
+                terrainColor = mix(
+                    terrainColor,
+                    sandColor,
+                    river * 0.85
+                );
+
+                // Felsige Hänge.
                 float slope = 1.0 - abs(vTerrainNormal.y);
 
                 float rockMask = smoothstep(
-                    0.24,
+                    0.28,
                     0.72,
                     slope
                 );
 
-                // Hohe Bergregionen bekommen mehr Stein
-                float mountainMask = smoothstep(
-                    28.0,
-                    65.0,
+                // Nur ein leichter Steinanteil auf hohen Flächen.
+                float highLand = smoothstep(
+                    24.0,
+                    48.0,
                     vWorldPosition.y
                 );
 
                 rockMask = max(
                     rockMask,
-                    mountainMask * 0.65
+                    highLand * 0.35
                 );
 
                 terrainColor = mix(
@@ -517,14 +660,15 @@ export class Welt {
             );
         };
 
-        material.customProgramCacheKey = () => "cube-wars-biome-terrain-v3";
+        material.customProgramCacheKey = () =>
+            "cube-wars-natural-terrain-v4";
 
         return material;
     }
 
-    // --------------------------------------------------
+    // ==========================================
     // MEER
-    // --------------------------------------------------
+    // ==========================================
 
     createOcean() {
         const geometry = new THREE.PlaneGeometry(
@@ -554,9 +698,9 @@ export class Welt {
         this.scene.add(this.ocean);
     }
 
-    // --------------------------------------------------
-    // ZUGRIFF AUF TERRAIN
-    // --------------------------------------------------
+    // ==========================================
+    // ZUGRIFF
+    // ==========================================
 
     getTerrain() {
         return this.terrain;
@@ -567,6 +711,7 @@ export class Welt {
 
         const left = this.getHeightAt(x - step, z);
         const right = this.getHeightAt(x + step, z);
+
         const back = this.getHeightAt(x, z - step);
         const front = this.getHeightAt(x, z + step);
 
@@ -576,19 +721,21 @@ export class Welt {
         return Math.sqrt(dx * dx + dz * dz);
     }
 
-    // --------------------------------------------------
+    // ==========================================
     // AUFRÄUMEN
-    // --------------------------------------------------
+    // ==========================================
 
     destroy() {
         if (this.terrain) {
             this.scene.remove(this.terrain);
+
             this.terrain.geometry.dispose();
             this.terrain.material.dispose();
         }
 
         if (this.ocean) {
             this.scene.remove(this.ocean);
+
             this.ocean.geometry.dispose();
             this.ocean.material.dispose();
         }
