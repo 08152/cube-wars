@@ -1,0 +1,132 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUBE WARS</title>
+
+<style>
+*{
+ box-sizing:border-box;
+}
+
+body{
+ margin:0;
+ width:100%;
+ height:100vh;
+ overflow:hidden;
+ font-family:Arial,sans-serif;
+ background:#071522;
+ color:white;
+}
+
+.background{
+ position:fixed;
+ inset:0;
+ background:
+  linear-gradient(#07152266,#07152299),
+  url("1.png") center center / cover no-repeat;
+ transform:scale(1.02);
+}
+
+.content{
+ position:relative;
+ z-index:2;
+ width:100%;
+ height:100%;
+ display:flex;
+ flex-direction:column;
+ justify-content:center;
+ align-items:center;
+ text-align:center;
+}
+
+h1{
+ font-size:clamp(55px,10vw,110px);
+ font-weight:1000;
+ letter-spacing:10px;
+ margin:0;
+ text-shadow:0 5px 0 #0872a9,0 0 40px #37baff;
+}
+
+.subtitle{
+ font-size:17px;
+ letter-spacing:9px;
+ color:#65d0ff;
+ margin-top:12px;
+}
+
+.start{
+ margin-top:65px;
+ width:260px;
+ padding:21px;
+ background:linear-gradient(135deg,#39bdff,#0874c5);
+ color:white;
+ border:2px solid #9be5ff;
+ border-radius:12px;
+ font-size:23px;
+ font-weight:bold;
+ letter-spacing:5px;
+ cursor:pointer;
+ box-shadow:0 0 35px #28aaff88;
+ transition:.2s;
+}
+
+.start:hover{
+ transform:scale(1.08);
+ box-shadow:0 0 60px #28aaff;
+}
+
+.footer{
+ position:absolute;
+ bottom:25px;
+ font-size:12px;
+ letter-spacing:3px;
+ color:#c4d8e6;
+}
+
+.version{
+ position:absolute;
+ top:25px;
+ right:30px;
+ font-size:12px;
+ color:#c4d8e6;
+ letter-spacing:2px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="background"></div>
+
+<div class="content">
+
+ <div class="version">BETA VERSION 0.1</div>
+
+ <h1>CUBE WARS</h1>
+
+ <div class="subtitle">
+  THE BLOCK BATTLE
+ </div>
+
+ <button class="start" onclick="startGame()">
+  START
+ </button>
+
+ <div class="footer">
+  CUBE WARS · ALL RIGHTS RESERVED
+ </div>
+
+</div>
+
+<script>
+function startGame(){
+ window.location.href="lobby.html";
+}
+</script>
+
+</body>
+</html>
