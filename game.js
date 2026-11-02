@@ -1,23 +1,65 @@
 
 import * as THREE from "three";
 
-// ==========================================
-// CUBE WARS - PLAYER SYSTEM
-// ==========================================
-
-// GRUNDEINSTELLUNGEN
+/* ==========================================
+   CUBE WARS
+   GAME ENGINE - game.js
+========================================== */
 
 const canvas = document.getElementById("game-canvas");
 
+if (!canvas) {
+    throw new Error("CUBE WARS: #game-canvas wurde nicht gefunden!");
+}
+
+// ------------------------------------------
+// KONFIGURATION
+// ------------------------------------------
+
+const CONFIG = {
+    fov: 85,
+    near: 0.05,
+    far: 1000,
+
+    gravity: 24,
+    jumpForce: 8.5,
+
+    walkSpeed: 6,
+    sprintSpeed: 10,
+    crouchSpeed: 2.8,
+
+    mouseSensitivity: 0.002,
+
+    maxHealth: 100,
+    maxShield: 100,
+    maxStamina: 100,
+
+    staminaDrain: 28,
+    staminaRecovery: 20,
+
+    playerHeight: 1.8,
+    crouchHeight: 1.1,
+
+    eyeHeight: 1.62,
+    crouchEyeHeight: 0.95
+};
+
+// ------------------------------------------
+// THREE.JS GRUNDLAGE
+// ------------------------------------------
+
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x000000);
+
+scene.background = new THREE.Color(0x111722);
 
 const camera = new THREE.PerspectiveCamera(
-    90,
+    CONFIG.fov,
     window.innerWidth / window.innerHeight,
-    0.05,
-    1000
+    CONFIG.near,
+    CONFIG.far
 );
+
+camera.rotation.order = "YXZ";
 
 const renderer = new THREE.WebGLRenderer({
     canvas,
@@ -26,94 +68,196 @@ const renderer = new THREE.WebGLRenderer({
 });
 
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-// Keine Weltobjekte.
-// Die Kamera ist die First-Person-Ansicht.
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-// ==========================================
-// PLAYER
-// ==========================================
+// Keine Weltobjekte: vorerst nur der Spieler und die Kamera.
+camera.position.set(0, CONFIG.eyeHeight, 0);
+scene.add(camera);
+
+// ------------------------------------------
+// SPIELER
+// ------------------------------------------
 
 const player = {
-
-    // Position: Füße des Spielers
     position: new THREE.Vector3(0, 0, 0),
-
     velocity: new THREE.Vector3(0, 0, 0),
 
-    health: 100,
-    maxHealth: 100,
+    health: CONFIG.maxHealth,
+    maxHealth: CONFIG.maxHealth,
 
-    stamina: 100,
-    maxStamina: 100,
+    shield: CONFIG.maxShield,
+    maxShield: CONFIG.maxShield,
 
-    speed: 5.5,
-    sprintSpeed: 9,
-    crouchSpeed: 2.5,
+    stamina: CONFIG.maxStamina,
+    maxStamina: CONFIG.maxStamina,
 
-    jumpForce: 7.5,
-    gravity: 22,
-
-    height: 1.8,
-    normalHeight: 1.8,
-    crouchHeight: 1.1,
+    speed: CONFIG.walkSpeed,
 
     grounded: true,
     crouching: false,
     sprinting: false,
+    moving: false,
 
     alive: true,
-
     kills: 0,
 
     selectedSlot: 1,
 
-    isMoving: false
+    eyeHeight: CONFIG.eyeHeight,
+
+    // Später für Inventar und Waffen.
+    inventory: [
+        { name: "ENERGIEBLASTER", ammo: 30, maxAmmo: 30 },
+        { name: "LEER", ammo: 0, maxAmmo: 0 },
+        { name: "LEER", ammo: 0, maxAmmo: 0 },
+        { name: "LEER", ammo: 0, maxAmmo: 0 },
+        { name: "LEER", ammo: 0, maxAmmo: 0 }
+    ]
 };
 
+// ------------------------------------------
 // KAMERA
+// ------------------------------------------
 
 let yaw = 0;
 let pitch = 0;
 
-camera.rotation.order = "YXZ";
+const PITCH_LIMIT = Math.PI / 2 - 0.01;
 
-camera.position.set(
-    player.position.x,
-    player.position.y + player.height,
-    player.position.z
-);
-
-// ==========================================
-// INPUT SYSTEM
-// ==========================================
+// ------------------------------------------
+// TASTEN
+// ------------------------------------------
 
 const keys = {};
 
-let mouseLocked = false;
-let paused = false;
 let gameStarted = false;
+let paused = false;
 
-let mouseSensitivity = 0.002;
+const clock = new THREE.Clock();
 
-const blockedKeys = [
-    "Space",
-    "ArrowUp",
-    "ArrowDown",
-    "ArrowLeft",
-    "ArrowRight"
-];
+let frameDelta = 0;
+
+// ------------------------------------------
+// KOLLISIONSSYSTEM
+// ------------------------------------------
+
+// Noch keine Welt.
+// Später können hier Gebäude, Boden und Objekte
+// mit einer eigenen Kollisionsfunktion ergänzt werden.
+
+let collisionHandler = null;
+
+function checkCollision(position) {
+
+    if (!collisionHandler) {
+        return false;
+    }
+
+    return collisionHandler(position, player);
+}
+
+// ------------------------------------------
+// UI
+// ------------------------------------------
+
+const UI = window.CubeWarsUI;
+
+function updateUI() {
+
+    if (!UI) return;
+
+    UI.updateHealth?.(player.health, player.maxHealth);
+    UI.updateShield?.(player.shield, player.maxShield);
+    UI.updateStamina?.(player.stamina, player.maxStamina);
+
+    UI.updateKills?.(player.kills);
+
+    UI.selectSlot?.(player.selectedSlot);
+
+    const weapon = player.inventory[player.selectedSlot - 1];
+
+    if (weapon) {
+        UI.updateWeapon?.(weapon.name);
+        UI.updateAmmo?.(weapon.ammo, weapon.maxAmmo);
+    }
+}
+
+// ------------------------------------------
+// MOUSE LOCK
+// ------------------------------------------
+
+function requestMouseLock() {
+
+    if (!player.alive || paused) return;
+
+    canvas.requestPointerLock?.();
+}
+
+canvas.addEventListener("click", () => {
+
+    if (!paused && player.alive) {
+        requestMouseLock();
+    }
+
+});
+
+// ------------------------------------------
+// MOUSE BEWEGUNG
+// ------------------------------------------
+
+document.addEventListener("mousemove", event => {
+
+    if (document.pointerLockElement !== canvas) return;
+    if (paused || !player.alive) return;
+
+    yaw -= event.movementX * CONFIG.mouseSensitivity;
+    pitch -= event.movementY * CONFIG.mouseSensitivity;
+
+    pitch = THREE.MathUtils.clamp(
+        pitch,
+        -PITCH_LIMIT,
+        PITCH_LIMIT
+    );
+
+    camera.rotation.set(pitch, yaw, 0, "YXZ");
+
+});
+
+// ------------------------------------------
+// TASTATUR
+// ------------------------------------------
 
 document.addEventListener("keydown", event => {
 
-    if (blockedKeys.includes(event.code)) {
+    keys[event.code] = true;
+
+    if (
+        ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]
+            .includes(event.code)
+    ) {
         event.preventDefault();
     }
 
-    keys[event.code] = true;
-
     if (event.repeat) return;
+
+    // ESCAPE
+    if (event.code === "Escape") {
+
+        if (paused) {
+            resumeGame();
+        } else {
+            pauseGame();
+        }
+
+        return;
+    }
+
+    // SPRINGEN
+    if (event.code === "Space") {
+        jump();
+    }
 
     // INVENTAR
     if (event.code.startsWith("Digit")) {
@@ -125,162 +269,127 @@ document.addEventListener("keydown", event => {
         }
     }
 
-    // SPRINGEN
-    if (event.code === "Space") {
-        jump();
-    }
-
-    // PAUSE
-    if (event.code === "Escape" && gameStarted) {
-        if (mouseLocked) {
-            document.exitPointerLock();
-        } else {
-            showPause();
-        }
-    }
 });
 
 document.addEventListener("keyup", event => {
     keys[event.code] = false;
 });
 
-window.addEventListener("blur", () => {
-    for (const key in keys) {
-        keys[key] = false;
-    }
-});
-
-// ==========================================
-// MOUSE LOOK
-// ==========================================
-
-canvas.addEventListener("click", () => {
-
-    if (!gameStarted || paused || !player.alive) return;
-
-    if (!mouseLocked) {
-        canvas.requestPointerLock();
-    }
-});
-
-document.addEventListener("pointerlockchange", () => {
-
-    mouseLocked = document.pointerLockElement === canvas;
-
-    if (mouseLocked) {
-        paused = false;
-        hidePause();
-    } else if (gameStarted && !paused) {
-        showPause();
-    }
-});
-
-document.addEventListener("mousemove", event => {
-
-    if (!mouseLocked || paused) return;
-
-    yaw -= event.movementX * mouseSensitivity;
-
-    pitch -= event.movementY * mouseSensitivity;
-
-    pitch = THREE.MathUtils.clamp(
-        pitch,
-        -Math.PI / 2 + 0.02,
-        Math.PI / 2 - 0.02
-    );
-
-    camera.rotation.order = "YXZ";
-    camera.rotation.y = yaw;
-    camera.rotation.x = pitch;
-});
-
-// ==========================================
-// MOVEMENT
-// ==========================================
-
-function getMovementDirection() {
-
-    const forward = new THREE.Vector3(
-        -Math.sin(yaw),
-        0,
-        -Math.cos(yaw)
-    );
-
-    const right = new THREE.Vector3(
-        Math.cos(yaw),
-        0,
-        -Math.sin(yaw)
-    );
-
-    const direction = new THREE.Vector3();
-
-    if (keys.KeyW) direction.add(forward);
-    if (keys.KeyS) direction.sub(forward);
-    if (keys.KeyD) direction.add(right);
-    if (keys.KeyA) direction.sub(right);
-
-    if (direction.lengthSq() > 0) {
-        direction.normalize();
-    }
-
-    return direction;
-}
-
-// ==========================================
-// JUMP
-// ==========================================
+// ------------------------------------------
+// SPRINGEN
+// ------------------------------------------
 
 function jump() {
 
-    if (!gameStarted || paused || !mouseLocked) return;
+    if (!player.alive || paused) return;
+    if (!player.grounded || player.crouching) return;
 
-    if (!player.grounded || !player.alive) return;
-
-    player.velocity.y = player.jumpForce;
+    player.velocity.y = CONFIG.jumpForce;
     player.grounded = false;
 }
 
-// ==========================================
-// CROUCH
-// ==========================================
+// ------------------------------------------
+// INVENTAR
+// ------------------------------------------
+
+function selectSlot(slot) {
+
+    if (slot < 1 || slot > 5) return;
+
+    player.selectedSlot = slot;
+
+    UI?.selectSlot?.(slot);
+
+    const weapon = player.inventory[slot - 1];
+
+    if (weapon) {
+        UI?.updateWeapon?.(weapon.name);
+        UI?.updateAmmo?.(weapon.ammo, weapon.maxAmmo);
+    }
+}
+
+// ------------------------------------------
+// DUCKEN
+// ------------------------------------------
 
 function updateCrouch() {
 
-    player.crouching = !!keys.ControlLeft || !!keys.ControlRight;
+    const shouldCrouch = keys["ControlLeft"] || keys["ControlRight"];
 
-    player.height = THREE.MathUtils.damp(
-        player.height,
-        player.crouching ? player.crouchHeight : player.normalHeight,
-        12,
-        clock.getDelta()
+    player.crouching = shouldCrouch;
+
+    const targetHeight = shouldCrouch
+        ? CONFIG.crouchEyeHeight
+        : CONFIG.eyeHeight;
+
+    player.eyeHeight = THREE.MathUtils.lerp(
+        player.eyeHeight,
+        targetHeight,
+        Math.min(frameDelta * 12, 1)
     );
 }
 
-// ==========================================
-// SPRINT
-// ==========================================
+// ------------------------------------------
+// BEWEGUNG
+// ------------------------------------------
 
-function updateSprint() {
+function updateMovement(delta) {
 
+    if (!player.alive || paused) return;
+
+    const forwardInput =
+        (keys["KeyW"] ? 1 : 0) -
+        (keys["KeyS"] ? 1 : 0);
+
+    const sideInput =
+        (keys["KeyD"] ? 1 : 0) -
+        (keys["KeyA"] ? 1 : 0);
+
+    const direction = new THREE.Vector3(
+        sideInput,
+        0,
+        forwardInput
+    );
+
+    player.moving = direction.lengthSq() > 0;
+
+    if (player.moving) {
+        direction.normalize();
+
+        direction.applyAxisAngle(
+            new THREE.Vector3(0, 1, 0),
+            yaw
+        );
+    }
+
+    // SPRINT
     const wantsSprint =
-        keys.ShiftLeft ||
-        keys.ShiftRight;
-
-    const moving = player.isMoving;
+        keys["ShiftLeft"] ||
+        keys["ShiftRight"];
 
     player.sprinting =
         wantsSprint &&
-        moving &&
+        player.moving &&
         !player.crouching &&
         player.stamina > 0;
 
+    if (player.crouching) {
+        player.speed = CONFIG.crouchSpeed;
+    } else if (player.sprinting) {
+        player.speed = CONFIG.sprintSpeed;
+    } else {
+        player.speed = CONFIG.walkSpeed;
+    }
+
+    // AUSDAUER
     if (player.sprinting) {
 
-        player.stamina -= 25 * frameDelta;
+        player.stamina -= CONFIG.staminaDrain * delta;
 
     } else {
 
-        player.stamina += 15 * frameDelta;
+        player.stamina += CONFIG.staminaRecovery * delta;
+
     }
 
     player.stamina = THREE.MathUtils.clamp(
@@ -288,43 +397,26 @@ function updateSprint() {
         0,
         player.maxStamina
     );
-}
 
-// ==========================================
-// PHYSICS
-// ==========================================
+    // HORIZONTALE BEWEGUNG
+    const movement = direction.multiplyScalar(
+        player.speed * delta
+    );
 
-// Hier kann später die Welt ihre Kollisionen
-// an das Spielersystem übergeben.
+    const nextPosition = player.position.clone();
 
-let collisionHandler = null;
+    nextPosition.x += movement.x;
+    nextPosition.z += movement.z;
 
-function canMoveTo(position) {
-
-    if (!collisionHandler) return true;
-
-    return collisionHandler(
-        position,
-        player
-    ) !== false;
-}
-
-function updatePhysics(dt) {
-
-    if (!player.alive) return;
-
-    // GRAVITY
-
-    if (!player.grounded) {
-
-        player.velocity.y -= player.gravity * dt;
-
+    if (!checkCollision(nextPosition)) {
+        player.position.x = nextPosition.x;
+        player.position.z = nextPosition.z;
     }
 
-    // VERTIKALE BEWEGUNG
+    // SCHWERKRAFT
+    player.velocity.y -= CONFIG.gravity * delta;
 
-    const nextY =
-        player.position.y + player.velocity.y * dt;
+    const nextY = player.position.y + player.velocity.y * delta;
 
     if (nextY <= 0) {
 
@@ -336,127 +428,121 @@ function updatePhysics(dt) {
 
         player.position.y = nextY;
         player.grounded = false;
+
     }
 
-    // HORIZONTALE BEWEGUNG
-
-    const direction = getMovementDirection();
-
-    player.isMoving = direction.lengthSq() > 0;
-
-    const currentSpeed = player.crouching
-        ? player.crouchSpeed
-        : player.sprinting
-            ? player.sprintSpeed
-            : player.speed;
-
-    const movement = direction.multiplyScalar(
-        currentSpeed * dt
-    );
-
-    // X-KOLLISION
-
-    const nextX = player.position.clone();
-    nextX.x += movement.x;
-
-    if (canMoveTo(nextX)) {
-        player.position.x = nextX.x;
-    }
-
-    // Z-KOLLISION
-
-    const nextZ = player.position.clone();
-    nextZ.z += movement.z;
-
-    if (canMoveTo(nextZ)) {
-        player.position.z = nextZ.z;
-    }
-}
-
-// ==========================================
-// CAMERA UPDATE
-// ==========================================
-
-function updateCamera(dt) {
-
-    const targetHeight =
-        player.position.y + player.height;
-
-    camera.position.x = player.position.x;
-    camera.position.z = player.position.z;
-
-    camera.position.y = THREE.MathUtils.damp(
-        camera.position.y,
-        targetHeight,
-        15,
-        dt
+    // KAMERA
+    camera.position.set(
+        player.position.x,
+        player.position.y + player.eyeHeight,
+        player.position.z
     );
 }
 
-// ==========================================
-// HEALTH SYSTEM
-// ==========================================
+// ------------------------------------------
+// AUSDAUER UND HUD
+// ------------------------------------------
+
+let hudUpdateTimer = 0;
+
+function updateHUD(delta) {
+
+    hudUpdateTimer += delta;
+
+    if (hudUpdateTimer < 0.05) return;
+
+    hudUpdateTimer = 0;
+
+    updateUI();
+}
+
+// ------------------------------------------
+// SCHADEN
+// ------------------------------------------
 
 function damage(amount) {
 
-    if (!player.alive) return;
+    if (!player.alive || amount <= 0) return;
 
-    player.health = Math.max(
-        0,
-        player.health - Math.max(0, amount)
+    let remainingDamage = amount;
+
+    // Erst Schild reduzieren.
+    const shieldDamage = Math.min(
+        player.shield,
+        remainingDamage
     );
 
-    updateHealthUI();
+    player.shield -= shieldDamage;
+    remainingDamage -= shieldDamage;
+
+    // Rest geht auf Leben.
+    if (remainingDamage > 0) {
+        player.health -= remainingDamage;
+    }
+
+    player.health = Math.max(0, player.health);
+
+    updateUI();
+
+    UI?.notify?.("DU WURDEST GETROFFEN!");
 
     if (player.health <= 0) {
-        playerDeath();
+        die();
     }
 }
+
+// ------------------------------------------
+// HEILEN
+// ------------------------------------------
 
 function heal(amount) {
 
-    if (!player.alive) return;
+    if (!player.alive || amount <= 0) return;
 
     player.health = Math.min(
         player.maxHealth,
-        player.health + Math.max(0, amount)
+        player.health + amount
     );
 
-    updateHealthUI();
+    updateUI();
 }
 
-function updateHealthUI() {
+// ------------------------------------------
+// SCHILD AUFFÜLLEN
+// ------------------------------------------
 
-    if (window.CubeWarsUI?.updateHealth) {
-        window.CubeWarsUI.updateHealth(
-            player.health,
-            player.maxHealth
-        );
-    }
+function restoreShield(amount) {
+
+    if (!player.alive || amount <= 0) return;
+
+    player.shield = Math.min(
+        player.maxShield,
+        player.shield + amount
+    );
+
+    updateUI();
 }
 
-// ==========================================
-// DEATH / RESPAWN
-// ==========================================
+// ------------------------------------------
+// TOD
+// ------------------------------------------
 
-function playerDeath() {
+function die() {
+
+    if (!player.alive) return;
 
     player.alive = false;
     player.velocity.set(0, 0, 0);
 
-    if (document.pointerLockElement) {
-        document.exitPointerLock();
-    }
+    document.exitPointerLock?.();
 
-    console.log("PLAYER ELIMINIERT");
+    UI?.showDeath?.();
 
-    // Hier kann später das Death-Menü
-    // durch ui.js geöffnet werden.
-
-    if (window.CubeWarsUI?.showDeath) {
-        window.CubeWarsUI.showDeath();
-    }
 }
+
+// ------------------------------------------
+// RESPAWN
+// ------------------------------------------
 
 function respawn(position = new THREE.Vector3(0, 0, 0)) {
 
@@ -465,87 +551,120 @@ function respawn(position = new THREE.Vector3(0, 0, 0)) {
     player.velocity.set(0, 0, 0);
 
     player.health = player.maxHealth;
+    player.shield = player.maxShield;
     player.stamina = player.maxStamina;
 
-    player.height = player.normalHeight;
-
+    player.alive = true;
     player.grounded = true;
+
     player.crouching = false;
     player.sprinting = false;
-    player.alive = true;
 
-    updateHealthUI();
+    player.eyeHeight = CONFIG.eyeHeight;
+
+    yaw = 0;
+    pitch = 0;
+
+    camera.rotation.set(0, 0, 0);
 
     camera.position.set(
         player.position.x,
-        player.position.y + player.height,
+        player.position.y + CONFIG.eyeHeight,
         player.position.z
     );
+
+    UI?.hideDeath?.();
+    updateUI();
+
+    requestMouseLock();
 }
 
-// ==========================================
-// INVENTORY SELECTION
-// ==========================================
+// ------------------------------------------
+// PAUSE
+// ------------------------------------------
 
-function selectSlot(slot) {
+function pauseGame() {
 
-    if (slot < 1 || slot > 5) return;
-
-    player.selectedSlot = slot;
-
-    if (window.CubeWarsUI?.selectSlot) {
-        window.CubeWarsUI.selectSlot(slot);
-    }
-}
-
-// ==========================================
-// PAUSE SYSTEM
-// ==========================================
-
-function showPause() {
+    if (paused || !player.alive) return;
 
     paused = true;
 
-    const menu = document.getElementById("pause-menu");
+    document.exitPointerLock?.();
 
-    if (menu) {
-        menu.style.display = "flex";
-    }
-
-    for (const key in keys) {
-        keys[key] = false;
-    }
+    UI?.showPause?.();
 }
 
-function hidePause() {
+function resumeGame() {
 
-    const menu = document.getElementById("pause-menu");
-
-    if (menu) {
-        menu.style.display = "none";
-    }
-}
-
-document.getElementById("resume-button")?.addEventListener("click", () => {
+    if (!paused || !player.alive) return;
 
     paused = false;
 
-    hidePause();
+    UI?.hidePause?.();
 
-    canvas.requestPointerLock();
+    requestMouseLock();
+}
+
+// ------------------------------------------
+// POINTER LOCK
+// ------------------------------------------
+
+document.addEventListener("pointerlockchange", () => {
+
+    const locked = document.pointerLockElement === canvas;
+
+    if (locked) {
+
+        if (player.alive) {
+            paused = false;
+            UI?.hidePause?.();
+        }
+
+    } else if (gameStarted && player.alive && !paused) {
+
+        paused = true;
+        UI?.showPause?.();
+
+    }
+
 });
 
-document.getElementById("menu-button")?.addEventListener("click", () => {
+// ------------------------------------------
+// FENSTERGRÖSSE
+// ------------------------------------------
 
-    window.location.href = "lobby.html";
+window.addEventListener("resize", () => {
+
+    camera.aspect = window.innerWidth / window.innerHeight;
+
+    camera.updateProjectionMatrix();
+
+    renderer.setSize(
+        window.innerWidth,
+        window.innerHeight
+    );
+
+    renderer.setPixelRatio(
+        Math.min(window.devicePixelRatio, 2)
+    );
 
 });
 
-// ==========================================
-// GAME INITIALIZATION
-// ==========================================
+// ------------------------------------------
+// SPIELSTART
+// ------------------------------------------
 
 function initializeGame() {
+
+    player.position.set(0, 0, 0);
+
+    camera.position.set(
+        0,
+        CONFIG.eyeHeight,
+        0
+    );
+
+    updateUI();
 
     gameStarted = true;
 
@@ -555,35 +674,15 @@ function initializeGame() {
         loading.style.display = "none";
     }
 
-    const elements = [
-        "crosshair",
-        "player-data",
-        "game-info",
-        "inventory"
-    ];
+    UI?.showHUD?.();
 
-    elements.forEach(id => {
+    UI?.notify?.("CUBE WARS BEREIT");
 
-        const element = document.getElementById(id);
-
-        if (element) {
-            element.style.display =
-                id === "inventory" ? "flex" : "block";
-        }
-    });
-
-    updateHealthUI();
-
-    console.log("CUBE WARS PLAYER SYSTEM INITIALISIERT");
 }
 
-// ==========================================
-// FRAME LOOP
-// ==========================================
-
-const clock = new THREE.Clock();
-
-let frameDelta = 0;
+// ------------------------------------------
+// HAUPTSCHLEIFE
+// ------------------------------------------
 
 function animate() {
 
@@ -591,42 +690,53 @@ function animate() {
 
     frameDelta = Math.min(clock.getDelta(), 0.05);
 
-    if (gameStarted && !paused && mouseLocked && player.alive) {
+    if (gameStarted && !paused && player.alive) {
 
         updateCrouch();
 
-        updateSprint();
+        updateMovement(frameDelta);
 
-        updatePhysics(frameDelta);
-
-        updateCamera(frameDelta);
+        updateHUD(frameDelta);
 
     }
 
     renderer.render(scene, camera);
+
 }
 
-// ==========================================
-// WINDOW RESIZE
-// ==========================================
+// ------------------------------------------
+// BUTTONS
+// ------------------------------------------
 
-window.addEventListener("resize", () => {
+document.getElementById("resume-button")?.addEventListener(
+    "click",
+    resumeGame
+);
 
-    camera.aspect =
-        window.innerWidth / window.innerHeight;
+document.getElementById("menu-button")?.addEventListener(
+    "click",
+    () => {
+        window.location.href = "lobby.html";
+    }
+);
 
-    camera.updateProjectionMatrix();
+document.getElementById("respawn-button")?.addEventListener(
+    "click",
+    () => {
+        respawn();
+    }
+);
 
-    renderer.setSize(
-        window.innerWidth,
-        window.innerHeight
-    );
+document.getElementById("death-lobby-button")?.addEventListener(
+    "click",
+    () => {
+        window.location.href = "lobby.html";
+    }
+);
 
-});
-
-// ==========================================
-// PUBLIC GAME API
-// ==========================================
+// ------------------------------------------
+// ÖFFENTLICHE SPIEL-API
+// ------------------------------------------
 
 window.CubeWars = {
 
@@ -637,32 +747,43 @@ window.CubeWars = {
 
     damage,
     heal,
+    restoreShield,
     respawn,
 
     selectSlot,
 
-    pause: showPause,
-    resume: hidePause,
+    pause: pauseGame,
+    resume: resumeGame,
 
     setCollisionHandler(callback) {
         collisionHandler = callback;
     },
 
-    start() {
-        if (!gameStarted) initializeGame();
+    get paused() {
+        return paused;
     },
 
     get mouseLocked() {
-        return mouseLocked;
+        return document.pointerLockElement === canvas;
     },
 
-    get paused() {
-        return paused;
+    get started() {
+        return gameStarted;
+    },
+
+    start() {
+        if (!gameStarted) {
+            initializeGame();
+        }
     }
 
 };
 
-// START
+// ------------------------------------------
+// LOS
+// ------------------------------------------
 
 initializeGame();
 animate();
+
+console.log("CUBE WARS GAME ENGINE gestartet.");
