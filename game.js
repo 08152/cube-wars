@@ -11,77 +11,137 @@ import { Flugzeug } from "./flugzeug.js";
 const canvas = document.getElementById("game-canvas");
 
 if (!canvas) {
-  throw new Error("CUBE WARS: #game-canvas fehlt!");
+    throw new Error("CUBE WARS: #game-canvas fehlt!");
 }
 
 const CONFIG = {
-  fov: 85,
-  near: 0.05,
-  far: 1200,
+    fov: 85,
+    near: 0.05,
+    far: 1500,
 
-  gravity: 24,
-  jumpForce: 8.5,
+    gravity: 24,
+    jumpForce: 8.5,
 
-  walkSpeed: 6,
-  sprintSpeed: 10,
-  crouchSpeed: 2.8,
+    walkSpeed: 6,
+    sprintSpeed: 10,
+    crouchSpeed: 2.8,
 
-  mouseSensitivity: 0.002,
+    mouseSensitivity: 0.002,
 
-  maxHealth: 100,
-  maxShield: 100,
-  maxStamina: 100,
+    maxHealth: 100,
+    maxShield: 100,
+    maxStamina: 100,
 
-  staminaDrain: 28,
-  staminaRecovery: 20,
+    staminaDrain: 28,
+    staminaRecovery: 20,
 
-  eyeHeight: 1.62,
-  crouchEyeHeight: 0.95,
+    // Niedrigere Kamera
+    eyeHeight: 1.35,
+    crouchEyeHeight: 0.78,
 
-  externalCameraDistance: 42,
-  externalCameraHeight: 17
+    externalCameraDistance: 42,
+    externalCameraHeight: 17,
+
+    minimumPlayers: 2,
+    networkInterval: 0.05
 };
 
 // ==========================================
-// THREE.JS
+// THREE.JS SZENE
 // ==========================================
 
 const scene = new THREE.Scene();
 
 scene.background = new THREE.Color(0x9cc9e8);
 
+scene.fog = new THREE.FogExp2(
+    0x9cc9e8,
+    0.00065
+);
+
 const camera = new THREE.PerspectiveCamera(
-  CONFIG.fov,
-  window.innerWidth / window.innerHeight,
-  CONFIG.near,
-  CONFIG.far
+    CONFIG.fov,
+    window.innerWidth / window.innerHeight,
+    CONFIG.near,
+    CONFIG.far
 );
 
 camera.rotation.order = "YXZ";
 
 const renderer = new THREE.WebGLRenderer({
-  canvas,
-  antialias: true,
-  powerPreference: "high-performance"
+    canvas,
+    antialias: true,
+    powerPreference: "high-performance"
 });
 
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(
+    window.innerWidth,
+    window.innerHeight
+);
+
+renderer.setPixelRatio(
+    Math.min(window.devicePixelRatio, 1.75)
+);
+
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 scene.add(camera);
 
 // ==========================================
+// BELEUCHTUNG
+// ==========================================
+
+const hemisphereLight = new THREE.HemisphereLight(
+    0xdceeff,
+    0x526044,
+    2.0
+);
+
+scene.add(hemisphereLight);
+
+const ambientLight = new THREE.AmbientLight(
+    0xffffff,
+    0.35
+);
+
+scene.add(ambientLight);
+
+const sunLight = new THREE.DirectionalLight(
+    0xfff1d5,
+    2.4
+);
+
+sunLight.position.set(-180, 260, 120);
+sunLight.castShadow = true;
+
+sunLight.shadow.mapSize.set(2048, 2048);
+
+sunLight.shadow.camera.left = -350;
+sunLight.shadow.camera.right = 350;
+sunLight.shadow.camera.top = 350;
+sunLight.shadow.camera.bottom = -350;
+
+sunLight.shadow.camera.near = 1;
+sunLight.shadow.camera.far = 800;
+
+sunLight.shadow.bias = -0.00015;
+sunLight.shadow.normalBias = 0.025;
+
+scene.add(sunLight);
+scene.add(sunLight.target);
+
+// ==========================================
 // WELT
 // ==========================================
 
 const welt = new Welt(scene, {
-  size: 600,
-  segments: 320,
-  grass: "./grass.png",
-  stone: "./stein.png"
+    size: 600,
+    segments: 320
 });
 
 // ==========================================
@@ -95,40 +155,60 @@ const plane = new Flugzeug(scene);
 // ==========================================
 
 const player = {
-  id: null,
+    id: null,
 
-  position: new THREE.Vector3(0, 0, 0),
-  velocity: new THREE.Vector3(),
+    position: new THREE.Vector3(0, 0, 0),
+    velocity: new THREE.Vector3(),
 
-  health: 100,
-  maxHealth: 100,
+    health: CONFIG.maxHealth,
+    maxHealth: CONFIG.maxHealth,
 
-  shield: 100,
-  maxShield: 100,
+    shield: CONFIG.maxShield,
+    maxShield: CONFIG.maxShield,
 
-  stamina: 100,
-  maxStamina: 100,
+    stamina: CONFIG.maxStamina,
+    maxStamina: CONFIG.maxStamina,
 
-  speed: CONFIG.walkSpeed,
+    speed: CONFIG.walkSpeed,
 
-  grounded: false,
-  crouching: false,
-  sprinting: false,
-  moving: false,
+    grounded: false,
+    crouching: false,
+    sprinting: false,
+    moving: false,
 
-  alive: true,
-  kills: 0,
+    alive: true,
+    kills: 0,
 
-  selectedSlot: 1,
-  eyeHeight: CONFIG.eyeHeight,
+    selectedSlot: 1,
+    eyeHeight: CONFIG.eyeHeight,
 
-  inventory: [
-    { name: "ENERGIEBLASTER", ammo: 30, maxAmmo: 30 },
-    { name: "LEER", ammo: 0, maxAmmo: 0 },
-    { name: "LEER", ammo: 0, maxAmmo: 0 },
-    { name: "LEER", ammo: 0, maxAmmo: 0 },
-    { name: "LEER", ammo: 0, maxAmmo: 0 }
-  ]
+    inventory: [
+        {
+            name: "ENERGIEBLASTER",
+            ammo: 30,
+            maxAmmo: 30
+        },
+        {
+            name: "LEER",
+            ammo: 0,
+            maxAmmo: 0
+        },
+        {
+            name: "LEER",
+            ammo: 0,
+            maxAmmo: 0
+        },
+        {
+            name: "LEER",
+            ammo: 0,
+            maxAmmo: 0
+        },
+        {
+            name: "LEER",
+            ammo: 0,
+            maxAmmo: 0
+        }
+    ]
 };
 
 // ==========================================
@@ -136,26 +216,24 @@ const player = {
 // ==========================================
 
 const PHASE = {
-  CONNECTING: "connecting",
-  WAITING: "waiting",
-  COUNTDOWN: "countdown",
-  FLIGHT: "flight",
-  FALLING: "falling",
-  PLAYING: "playing",
-  DEAD: "dead"
+    CONNECTING: "connecting",
+    WAITING: "waiting",
+    COUNTDOWN: "countdown",
+    FLIGHT: "flight",
+    FALLING: "falling",
+    PLAYING: "playing",
+    DEAD: "dead"
 };
 
 let phase = PHASE.CONNECTING;
 
 let matchStarted = false;
 let hasJumped = false;
-let planeFinished = false;
+let paused = false;
+let gameStarted = false;
 
 let playerCount = 0;
 let countdownSeconds = null;
-
-let paused = false;
-let gameStarted = false;
 
 // ==========================================
 // UI
@@ -164,27 +242,40 @@ let gameStarted = false;
 const UI = window.CubeWarsUI;
 
 function updateUI() {
-  if (!UI) return;
+    if (!UI) return;
 
-  UI.updateHealth?.(player.health, player.maxHealth);
-  UI.updateShield?.(player.shield, player.maxShield);
-  UI.updateStamina?.(player.stamina, player.maxStamina);
+    UI.updateHealth?.(
+        player.health,
+        player.maxHealth
+    );
 
-  UI.updateKills?.(player.kills);
-  UI.selectSlot?.(player.selectedSlot);
+    UI.updateShield?.(
+        player.shield,
+        player.maxShield
+    );
 
-  const weapon = player.inventory[player.selectedSlot - 1];
+    UI.updateStamina?.(
+        player.stamina,
+        player.maxStamina
+    );
 
-  if (weapon) {
-    UI.updateWeapon?.(weapon.name);
-    UI.updateAmmo?.(weapon.ammo, weapon.maxAmmo);
-  }
+    UI.updateKills?.(player.kills);
+    UI.selectSlot?.(player.selectedSlot);
 
-  UI.updateEnemies?.(Math.max(0, playerCount - 1));
+    const weapon = player.inventory[player.selectedSlot - 1];
+
+    if (weapon) {
+        UI.updateWeapon?.(weapon.name);
+        UI.updateAmmo?.(weapon.ammo, weapon.maxAmmo);
+    }
+
+    UI.updateEnemies?.(
+        Math.max(0, playerCount - 1)
+    );
 }
 
 function notify(message) {
-  UI?.notify?.(message);
+    UI?.notify?.(message);
 }
 
 // ==========================================
@@ -196,44 +287,53 @@ const queueOverlay = document.createElement("div");
 queueOverlay.id = "cube-wars-queue";
 
 Object.assign(queueOverlay.style, {
-  position: "fixed",
-  inset: "0",
-  zIndex: "10000",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  flexDirection: "column",
-  background: "rgba(5, 10, 20, 0.82)",
-  color: "white",
-  fontFamily: "Arial, sans-serif",
-  textAlign: "center",
-  pointerEvents: "none"
+    position: "fixed",
+    inset: "0",
+    zIndex: "10000",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "column",
+    background: "rgba(5, 10, 20, 0.86)",
+    color: "white",
+    fontFamily: "Arial, sans-serif",
+    textAlign: "center",
+    pointerEvents: "none"
 });
 
 queueOverlay.innerHTML = `
-  <div style="
-    font-size:14px;
-    letter-spacing:5px;
-    color:#a8cfff;
-    margin-bottom:18px;
-  ">CUBE WARS</div>
+    <div style="
+        font-size:14px;
+        letter-spacing:6px;
+        color:#a8cfff;
+        margin-bottom:20px;
+        font-weight:800;
+    ">
+        CUBE WARS
+    </div>
 
-  <div id="queue-title" style="
-    font-size:34px;
-    font-weight:900;
-    margin-bottom:12px;
-  ">VERBINDE MIT SERVER</div>
+    <div id="queue-title" style="
+        font-size:36px;
+        font-weight:900;
+        margin-bottom:14px;
+    ">
+        VERBINDE MIT SERVER
+    </div>
 
-  <div id="queue-description" style="
-    font-size:17px;
-    color:#d4deec;
-  ">Bitte warten ...</div>
+    <div id="queue-description" style="
+        font-size:17px;
+        color:#d4deec;
+    ">
+        Bitte warten ...
+    </div>
 
-  <div id="queue-count" style="
-    font-size:48px;
-    font-weight:900;
-    margin-top:22px;
-  ">0 / 2</div>
+    <div id="queue-count" style="
+        font-size:48px;
+        font-weight:900;
+        margin-top:24px;
+    ">
+        0 / 2
+    </div>
 `;
 
 document.body.appendChild(queueOverlay);
@@ -243,140 +343,178 @@ const queueDescription = document.getElementById("queue-description");
 const queueCount = document.getElementById("queue-count");
 
 function showQueue(title, description, count) {
-  queueOverlay.style.display = "flex";
+    queueOverlay.style.display = "flex";
 
-  queueTitle.textContent = title;
-  queueDescription.textContent = description;
-  queueCount.textContent = count;
+    queueTitle.textContent = title;
+    queueDescription.textContent = description;
+    queueCount.textContent = count;
 }
 
 function hideQueue() {
-  queueOverlay.style.display = "none";
+    queueOverlay.style.display = "none";
 }
 
 // ==========================================
 // SERVERVERBINDUNG
 // ==========================================
 
-const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-
-const socket = new WebSocket(
-  `${protocol}//${location.host}`
-);
-
+let socket = null;
 let reconnectTimer = null;
+let reconnectDelay = 2000;
 
-socket.addEventListener("open", () => {
-  console.log("CUBE WARS: Server verbunden.");
+function connectServer() {
+    if (
+        socket &&
+        (
+            socket.readyState === WebSocket.OPEN ||
+            socket.readyState === WebSocket.CONNECTING
+        )
+    ) {
+        return;
+    }
 
-  phase = PHASE.WAITING;
+    const protocol = location.protocol === "https:"
+        ? "wss:"
+        : "ws:";
 
-  showQueue(
-    "SPIELERSUCHE",
-    "Warte auf einen weiteren Spieler ...",
-    "0 / 2"
-  );
-});
+    socket = new WebSocket(
+        `${protocol}//${location.host}`
+    );
 
-socket.addEventListener("message", event => {
-  let data;
+    socket.addEventListener("open", () => {
+        console.log("CUBE WARS: Server verbunden.");
 
-  try {
-    data = JSON.parse(event.data);
-  } catch {
-    return;
-  }
+        reconnectDelay = 2000;
 
-  handleServerMessage(data);
-});
+        if (!matchStarted) {
+            phase = PHASE.WAITING;
 
-socket.addEventListener("close", () => {
-  if (matchStarted) return;
+            showQueue(
+                "SPIELERSUCHE",
+                "Warte auf einen weiteren Spieler ...",
+                "0 / 2"
+            );
+        }
+    });
 
-  phase = PHASE.CONNECTING;
+    socket.addEventListener("message", event => {
+        let data;
 
-  showQueue(
-    "VERBINDUNG VERLOREN",
-    "Verbindung zum Server wird wiederhergestellt ...",
-    "— / 2"
-  );
+        try {
+            data = JSON.parse(event.data);
+        } catch {
+            console.warn("Ungültige Servernachricht.");
+            return;
+        }
 
-  clearTimeout(reconnectTimer);
+        handleServerMessage(data);
+    });
 
-  reconnectTimer = setTimeout(() => {
-    location.reload();
-  }, 3000);
-});
+    socket.addEventListener("close", () => {
+        console.warn("CUBE WARS: Serververbindung verloren.");
 
-socket.addEventListener("error", () => {
-  console.error("CUBE WARS: Serververbindung fehlgeschlagen.");
-});
+        if (!matchStarted) {
+            phase = PHASE.CONNECTING;
+
+            showQueue(
+                "VERBINDUNG VERLOREN",
+                "Versuche erneut, den Server zu erreichen ...",
+                "— / 2"
+            );
+        }
+
+        clearTimeout(reconnectTimer);
+
+        reconnectTimer = setTimeout(() => {
+            connectServer();
+            reconnectDelay = Math.min(
+                reconnectDelay * 1.5,
+                15000
+            );
+        }, reconnectDelay);
+    });
+
+    socket.addEventListener("error", () => {
+        console.error(
+            "CUBE WARS: Serververbindung fehlgeschlagen."
+        );
+    });
+}
+
+connectServer();
+
+// ==========================================
+// SERVERNACHRICHTEN
+// ==========================================
 
 function handleServerMessage(data) {
-  switch (data.type) {
-    case "connected":
-      player.id = data.id;
-      break;
+    switch (data.type) {
+        case "connected":
+            player.id = data.id;
+            break;
 
-    case "queue":
-      playerCount = data.players ?? 0;
+        case "queue":
+            playerCount = data.players ?? 0;
 
-      if (data.matchStarted) {
-        startMatch();
-        break;
-      }
+            if (data.matchStarted) {
+                startMatch();
+                break;
+            }
 
-      if (data.countdown !== null) {
-        phase = PHASE.COUNTDOWN;
+            if (data.countdown !== null && data.countdown !== undefined) {
+                phase = PHASE.COUNTDOWN;
 
-        countdownSeconds = data.countdown;
+                countdownSeconds = data.countdown;
 
-        showQueue(
-          "SPIEL STARTET BALD",
-          `Das Flugzeug startet in ${countdownSeconds} Sekunden.`,
-          `${playerCount} / 2`
-        );
-      } else {
-        phase = PHASE.WAITING;
+                showQueue(
+                    "SPIEL STARTET BALD",
+                    `Das Flugzeug startet in ${countdownSeconds} Sekunden.`,
+                    `${playerCount} / ${CONFIG.minimumPlayers}`
+                );
+            } else {
+                phase = PHASE.WAITING;
 
-        showQueue(
-          "SPIELERSUCHE",
-          playerCount < 2
-            ? "Warte auf einen weiteren Spieler ..."
-            : "Spieler gefunden.",
-          `${playerCount} / 2`
-        );
-      }
+                showQueue(
+                    "SPIELERSUCHE",
+                    playerCount < CONFIG.minimumPlayers
+                        ? "Warte auf einen weiteren Spieler ..."
+                        : "Spieler gefunden.",
+                    `${playerCount} / ${CONFIG.minimumPlayers}`
+                );
+            }
 
-      updateUI();
-      break;
+            updateUI();
+            break;
 
-    case "countdown":
-      phase = PHASE.COUNTDOWN;
-      countdownSeconds = data.seconds;
+        case "countdown":
+            phase = PHASE.COUNTDOWN;
+            countdownSeconds = data.seconds;
 
-      showQueue(
-        "SPIELER GEFUNDEN",
-        "Das Flugzeug startet gleich!",
-        `${playerCount} / 2`
-      );
-      break;
+            showQueue(
+                "SPIELER GEFUNDEN",
+                "Das Flugzeug startet gleich!",
+                `${playerCount} / ${CONFIG.minimumPlayers}`
+            );
+            break;
 
-    case "match-start":
-      playerCount = data.players ?? playerCount;
-      startMatch();
-      break;
+        case "match-start":
+            playerCount = data.players ?? playerCount;
+            startMatch();
+            break;
 
-    case "player-left":
-      playerCount = Math.max(0, playerCount - 1);
-      updateUI();
-      break;
+        case "player-left":
+            playerCount = Math.max(
+                0,
+                playerCount - 1
+            );
 
-    case "player-position":
-      // Hier können später die sichtbaren anderen Spieler
-      // anhand ihrer Serverposition aktualisiert werden.
-      break;
-  }
+            updateUI();
+            break;
+
+        case "player-position":
+            // Hier können später andere Spieler dargestellt werden.
+            break;
+    }
 }
 
 // ==========================================
@@ -384,29 +522,28 @@ function handleServerMessage(data) {
 // ==========================================
 
 function startMatch() {
-  if (matchStarted) return;
+    if (matchStarted) return;
 
-  matchStarted = true;
-  gameStarted = true;
+    matchStarted = true;
+    gameStarted = true;
 
-  phase = PHASE.FLIGHT;
+    phase = PHASE.FLIGHT;
 
-  hideQueue();
+    hideQueue();
 
-  const loading = document.getElementById("game-loading");
+    const loading = document.getElementById("game-loading");
 
-  if (loading) {
-    loading.style.display = "none";
-  }
+    if (loading) {
+        loading.style.display = "none";
+    }
 
-  UI?.showHUD?.();
+    UI?.showHUD?.();
 
-  // Flugzeug startet seine Route.
-  plane.start();
+    plane.start();
 
-  notify("DAS FLUGZEUG STARTET!");
+    notify("DAS FLUGZEUG STARTET!");
 
-  updateUI();
+    updateUI();
 }
 
 // ==========================================
@@ -414,48 +551,52 @@ function startMatch() {
 // ==========================================
 
 function getPlanePosition() {
-  const position = plane.getPosition?.();
+    const position = plane.getPosition?.();
 
-  if (position && position.isVector3) {
-    return position.clone();
-  }
+    if (position?.isVector3) {
+        return position.clone();
+    }
 
-  if (plane.mesh?.position) {
-    return plane.mesh.position.clone();
-  }
+    if (plane.mesh?.position) {
+        return plane.mesh.position.clone();
+    }
 
-  if (plane.model?.position) {
-    return plane.model.position.clone();
-  }
+    if (plane.model?.position) {
+        return plane.model.position.clone();
+    }
 
-  return new THREE.Vector3(-180, 85, 0);
+    return new THREE.Vector3(-180, 85, 0);
 }
 
 // ==========================================
-// EXTERNE FLUGZEUGKAMERA
+// FLUGZEUGKAMERA
 // ==========================================
 
 const cameraTarget = new THREE.Vector3();
+const cameraOffset = new THREE.Vector3();
 
 function updateExternalPlaneCamera() {
-  const planePosition = getPlanePosition();
+    const planePosition = getPlanePosition();
 
-  // Kamera schräg hinter dem Flugzeug.
-  const cameraOffset = new THREE.Vector3(
-    -CONFIG.externalCameraDistance,
-    CONFIG.externalCameraHeight,
-    30
-  );
+    cameraOffset.set(
+        -CONFIG.externalCameraDistance,
+        CONFIG.externalCameraHeight,
+        30
+    );
 
-  camera.position.copy(
-    planePosition.clone().add(cameraOffset)
-  );
+    if (plane.mesh?.rotation) {
+        cameraOffset.applyAxisAngle(
+            new THREE.Vector3(0, 1, 0),
+            plane.mesh.rotation.y
+        );
+    }
 
-  cameraTarget.copy(planePosition);
+    camera.position.copy(planePosition).add(cameraOffset);
 
-  cameraTarget.y += 2;
+    cameraTarget.copy(planePosition);
+    cameraTarget.y += 2;
 
-  camera.lookAt(cameraTarget);
+    camera.lookAt(cameraTarget);
 }
 
 // ==========================================
@@ -463,103 +604,106 @@ function updateExternalPlaneCamera() {
 // ==========================================
 
 function updatePlayerInPlane() {
-  const planePosition = getPlanePosition();
+    const planePosition = getPlanePosition();
 
-  // Spieler befindet sich während des Fluges
-  // im Inneren des Transportflugzeugs.
-  player.position.set(
-    planePosition.x,
-    planePosition.y - 2.5,
-    planePosition.z
-  );
+    player.position.set(
+        planePosition.x,
+        planePosition.y - 2.5,
+        planePosition.z
+    );
 
-  player.velocity.set(0, 0, 0);
+    player.velocity.set(0, 0, 0);
 
-  updateExternalPlaneCamera();
+    updateExternalPlaneCamera();
 }
 
 // ==========================================
-// ABSPRUNG
+// ABSRPUNG
 // ==========================================
 
+let yaw = 0;
+let pitch = 0;
+
 function jumpFromPlane() {
-  if (!matchStarted) return;
-  if (phase !== PHASE.FLIGHT) return;
-  if (hasJumped) return;
-  if (!player.alive) return;
+    if (!matchStarted) return;
+    if (phase !== PHASE.FLIGHT) return;
+    if (hasJumped || !player.alive) return;
 
-  hasJumped = true;
-  phase = PHASE.FALLING;
+    hasJumped = true;
+    phase = PHASE.FALLING;
 
-  const planePosition = getPlanePosition();
+    const planePosition = getPlanePosition();
 
-  player.position.set(
-    planePosition.x,
-    planePosition.y - 3,
-    planePosition.z
-  );
+    player.position.set(
+        planePosition.x,
+        planePosition.y - 3,
+        planePosition.z
+    );
 
-  // Leichter Vorwärtsimpuls
-  player.velocity.set(24, -2, 0);
+    player.velocity.set(
+        24,
+        -2,
+        0
+    );
 
-  player.grounded = false;
+    player.grounded = false;
 
-  // First Person
-  yaw = 0;
-  pitch = 0;
+    yaw = 0;
+    pitch = 0;
 
-  camera.rotation.set(0, 0, 0);
+    camera.rotation.set(0, 0, 0);
 
-  camera.position.set(
-    player.position.x,
-    player.position.y + CONFIG.eyeHeight,
-    player.position.z
-  );
+    camera.position.set(
+        player.position.x,
+        player.position.y + player.eyeHeight,
+        player.position.z
+    );
 
-  notify("ABSprung! DU BIST IN DER LUFT!");
+    notify("ABSPRUNG! DU BIST IN DER LUFT!");
 
-  hideQueue();
+    hideQueue();
 
-  // Pointer Lock für die First-Person-Steuerung.
-  canvas.requestPointerLock?.();
+    canvas.requestPointerLock?.();
 
-  updateUI();
+    updateUI();
 }
 
 // ==========================================
 // KAMERA UND MOUSE
 // ==========================================
 
-let yaw = 0;
-let pitch = 0;
-
 const PITCH_LIMIT = Math.PI / 2 - 0.01;
 
 canvas.addEventListener("click", () => {
-  if (
-    matchStarted &&
-    hasJumped &&
-    player.alive &&
-    !paused
-  ) {
-    canvas.requestPointerLock?.();
-  }
+    if (
+        matchStarted &&
+        hasJumped &&
+        player.alive &&
+        !paused
+    ) {
+        canvas.requestPointerLock?.();
+    }
 });
 
 document.addEventListener("mousemove", event => {
-  if (document.pointerLockElement !== canvas) return;
-  if (!hasJumped || paused || !player.alive) return;
+    if (document.pointerLockElement !== canvas) return;
+    if (!hasJumped || paused || !player.alive) return;
 
-  yaw -= event.movementX * CONFIG.mouseSensitivity;
-  pitch -= event.movementY * CONFIG.mouseSensitivity;
+    yaw -= event.movementX * CONFIG.mouseSensitivity;
+    pitch -= event.movementY * CONFIG.mouseSensitivity;
 
-  pitch = THREE.MathUtils.clamp(
-    pitch,
-    -PITCH_LIMIT,
-    PITCH_LIMIT
-  );
+    pitch = THREE.MathUtils.clamp(
+        pitch,
+        -PITCH_LIMIT,
+        PITCH_LIMIT
+    );
 
-  camera.rotation.set(pitch, yaw, 0, "YXZ");
+    camera.rotation.set(
+        pitch,
+        yaw,
+        0,
+        "YXZ"
+    );
 });
 
 // ==========================================
@@ -569,48 +713,59 @@ document.addEventListener("mousemove", event => {
 const keys = {};
 
 document.addEventListener("keydown", event => {
-  keys[event.code] = true;
+    keys[event.code] = true;
 
-  if (event.code === "Space") {
-    event.preventDefault();
+    if (event.code === "Space") {
+        event.preventDefault();
 
-    if (phase === PHASE.FLIGHT) {
-      jumpFromPlane();
-    } else if (phase === PHASE.PLAYING) {
-      jump();
+        if (phase === PHASE.FLIGHT) {
+            jumpFromPlane();
+        } else if (phase === PHASE.PLAYING) {
+            jump();
+        }
     }
-  }
 
-  if (event.repeat) return;
+    if (event.repeat) return;
 
-  if (event.code === "Escape" && hasJumped) {
-    if (paused) resumeGame();
-    else pauseGame();
-  }
-
-  if (event.code.startsWith("Digit")) {
-    const slot = Number(event.code.replace("Digit", ""));
-
-    if (slot >= 1 && slot <= 5) {
-      selectSlot(slot);
+    if (event.code === "Escape" && hasJumped) {
+        if (paused) {
+            resumeGame();
+        } else {
+            pauseGame();
+        }
     }
-  }
+
+    if (event.code.startsWith("Digit")) {
+        const slot = Number(
+            event.code.replace("Digit", "")
+        );
+
+        if (slot >= 1 && slot <= 5) {
+            selectSlot(slot);
+        }
+    }
 });
 
 document.addEventListener("keyup", event => {
-  keys[event.code] = false;
+    keys[event.code] = false;
+});
+
+window.addEventListener("blur", () => {
+    for (const key of Object.keys(keys)) {
+        keys[key] = false;
+    }
 });
 
 // ==========================================
-// BODEN UND SPRINGEN
+// SPRINGEN
 // ==========================================
 
 function jump() {
-  if (!player.alive || paused) return;
-  if (!player.grounded || player.crouching) return;
+    if (!player.alive || paused) return;
+    if (!player.grounded || player.crouching) return;
 
-  player.velocity.y = CONFIG.jumpForce;
-  player.grounded = false;
+    player.velocity.y = CONFIG.jumpForce;
+    player.grounded = false;
 }
 
 // ==========================================
@@ -618,18 +773,21 @@ function jump() {
 // ==========================================
 
 function selectSlot(slot) {
-  if (slot < 1 || slot > 5) return;
+    if (slot < 1 || slot > 5) return;
 
-  player.selectedSlot = slot;
+    player.selectedSlot = slot;
 
-  UI?.selectSlot?.(slot);
+    UI?.selectSlot?.(slot);
 
-  const weapon = player.inventory[slot - 1];
+    const weapon = player.inventory[slot - 1];
 
-  if (weapon) {
-    UI?.updateWeapon?.(weapon.name);
-    UI?.updateAmmo?.(weapon.ammo, weapon.maxAmmo);
-  }
+    if (weapon) {
+        UI?.updateWeapon?.(weapon.name);
+        UI?.updateAmmo?.(
+            weapon.ammo,
+            weapon.maxAmmo
+        );
+    }
 }
 
 // ==========================================
@@ -637,216 +795,243 @@ function selectSlot(slot) {
 // ==========================================
 
 function updateCrouch(delta) {
-  const shouldCrouch =
-    keys["ControlLeft"] ||
-    keys["ControlRight"];
+    const shouldCrouch =
+        keys["ControlLeft"] ||
+        keys["ControlRight"];
 
-  player.crouching = shouldCrouch;
+    player.crouching = shouldCrouch;
 
-  const targetHeight = shouldCrouch
-    ? CONFIG.crouchEyeHeight
-    : CONFIG.eyeHeight;
+    const targetHeight = shouldCrouch
+        ? CONFIG.crouchEyeHeight
+        : CONFIG.eyeHeight;
 
-  player.eyeHeight = THREE.MathUtils.lerp(
-    player.eyeHeight,
-    targetHeight,
-    Math.min(delta * 12, 1)
-  );
+    player.eyeHeight = THREE.MathUtils.lerp(
+        player.eyeHeight,
+        targetHeight,
+        Math.min(delta * 12, 1)
+    );
 }
 
 // ==========================================
-// BEWEGUNG
+// BEWEGUNGSRICHTUNG
+// ==========================================
+
+const worldUp = new THREE.Vector3(0, 1, 0);
+
+function getMovementDirection() {
+    const forwardInput =
+        (keys["KeyW"] ? 1 : 0) -
+        (keys["KeyS"] ? 1 : 0);
+
+    const sideInput =
+        (keys["KeyD"] ? 1 : 0) -
+        (keys["KeyA"] ? 1 : 0);
+
+    const direction = new THREE.Vector3(
+        sideInput,
+        0,
+        -forwardInput
+    );
+
+    if (direction.lengthSq() > 0) {
+        direction.normalize();
+        direction.applyAxisAngle(worldUp, yaw);
+    }
+
+    return direction;
+}
+
+// ==========================================
+// SPIELERBEWEGUNG
 // ==========================================
 
 function updateMovement(delta) {
-  if (!player.alive || paused) return;
+    if (!player.alive || paused) return;
 
-  const forwardInput =
-    (keys["KeyW"] ? 1 : 0) -
-    (keys["KeyS"] ? 1 : 0);
+    const direction = getMovementDirection();
 
-  const sideInput =
-    (keys["KeyD"] ? 1 : 0) -
-    (keys["KeyA"] ? 1 : 0);
+    player.moving = direction.lengthSq() > 0;
 
-  const direction = new THREE.Vector3(
-    sideInput,
-    0,
-    -forwardInput
-  );
+    const wantsSprint =
+        keys["ShiftLeft"] ||
+        keys["ShiftRight"];
 
-  player.moving = direction.lengthSq() > 0;
+    player.sprinting =
+        wantsSprint &&
+        player.moving &&
+        !player.crouching &&
+        player.stamina > 0;
 
-  if (player.moving) {
-    direction.normalize();
-    direction.applyAxisAngle(
-      new THREE.Vector3(0, 1, 0),
-      yaw
+    if (player.crouching) {
+        player.speed = CONFIG.crouchSpeed;
+    } else if (player.sprinting) {
+        player.speed = CONFIG.sprintSpeed;
+    } else {
+        player.speed = CONFIG.walkSpeed;
+    }
+
+    if (player.sprinting) {
+        player.stamina -= CONFIG.staminaDrain * delta;
+    } else {
+        player.stamina += CONFIG.staminaRecovery * delta;
+    }
+
+    player.stamina = THREE.MathUtils.clamp(
+        player.stamina,
+        0,
+        player.maxStamina
     );
-  }
 
-  const wantsSprint =
-    keys["ShiftLeft"] ||
-    keys["ShiftRight"];
+    // Horizontale Bewegung
+    const oldX = player.position.x;
+    const oldZ = player.position.z;
 
-  player.sprinting =
-    wantsSprint &&
-    player.moving &&
-    !player.crouching &&
-    player.stamina > 0;
+    player.position.x += direction.x * player.speed * delta;
+    player.position.z += direction.z * player.speed * delta;
 
-  if (player.crouching) {
-    player.speed = CONFIG.crouchSpeed;
-  } else if (player.sprinting) {
-    player.speed = CONFIG.sprintSpeed;
-  } else {
-    player.speed = CONFIG.walkSpeed;
-  }
+    // Inselgrenze
+    if (
+        !welt.isInsideWorld(
+            player.position.x,
+            player.position.z
+        )
+    ) {
+        player.position.x = oldX;
+        player.position.z = oldZ;
+    }
 
-  if (player.sprinting) {
-    player.stamina -= CONFIG.staminaDrain * delta;
-  } else {
-    player.stamina += CONFIG.staminaRecovery * delta;
-  }
+    // Gelände
+    const groundHeight = welt.getGroundHeight(
+        player.position.x,
+        player.position.z
+    );
 
-  player.stamina = THREE.MathUtils.clamp(
-    player.stamina,
-    0,
-    player.maxStamina
-  );
+    player.velocity.y -= CONFIG.gravity * delta;
 
-  player.position.x += direction.x * player.speed * delta;
-  player.position.z += direction.z * player.speed * delta;
+    const nextY =
+        player.position.y +
+        player.velocity.y * delta;
 
-  // Inselgrenze
-  if (!welt.isInsideWorld(player.position.x, player.position.z)) {
-    player.position.x -= direction.x * player.speed * delta;
-    player.position.z -= direction.z * player.speed * delta;
-  }
+    if (nextY <= groundHeight) {
+        player.position.y = groundHeight;
+        player.velocity.y = 0;
+        player.grounded = true;
+    } else {
+        player.position.y = nextY;
+        player.grounded = false;
+    }
 
-  // Gelände-Kollision
-  const groundHeight = welt.getGroundHeight(
-    player.position.x,
-    player.position.z
-  );
+    camera.position.set(
+        player.position.x,
+        player.position.y + player.eyeHeight,
+        player.position.z
+    );
 
-  player.velocity.y -= CONFIG.gravity * delta;
-
-  const nextY = player.position.y + player.velocity.y * delta;
-
-  if (nextY <= groundHeight) {
-    player.position.y = groundHeight;
-    player.velocity.y = 0;
-    player.grounded = true;
-    phase = PHASE.PLAYING;
-  } else {
-    player.position.y = nextY;
-    player.grounded = false;
-  }
-
-  camera.position.set(
-    player.position.x,
-    player.position.y + player.eyeHeight,
-    player.position.z
-  );
+    if (player.position.y < -40) {
+        die();
+    }
 }
 
 // ==========================================
-// FALLPHASE
+// FREIER FALL
 // ==========================================
 
 function updateFalling(delta) {
-  if (!player.alive || paused) return;
+    if (!player.alive || paused) return;
 
-  // Bewegung und Schwerkraft beim freien Fall.
-  const forward = new THREE.Vector3(
-    -Math.sin(yaw),
-    0,
-    -Math.cos(yaw)
-  );
+    const direction = getMovementDirection();
 
-  const side = new THREE.Vector3(
-    Math.cos(yaw),
-    0,
-    -Math.sin(yaw)
-  );
+    if (direction.lengthSq() > 0) {
+        player.position.addScaledVector(
+            direction,
+            5 * delta
+        );
+    }
 
-  const horizontal = new THREE.Vector3();
+    player.velocity.y -= CONFIG.gravity * delta;
 
-  if (keys["KeyW"]) horizontal.add(forward);
-  if (keys["KeyS"]) horizontal.sub(forward);
-  if (keys["KeyD"]) horizontal.add(side);
-  if (keys["KeyA"]) horizontal.sub(side);
+    player.position.y += player.velocity.y * delta;
 
-  if (horizontal.lengthSq() > 0) {
-    horizontal.normalize();
-    player.position.addScaledVector(horizontal, 5 * delta);
-  }
+    // Spieler bleibt innerhalb der Inselgrenze.
+    if (
+        !welt.isInsideWorld(
+            player.position.x,
+            player.position.z
+        )
+    ) {
+        const centerDirection = new THREE.Vector2(
+            -player.position.x,
+            -player.position.z
+        ).normalize();
 
-  player.velocity.y -= CONFIG.gravity * delta;
+        player.position.x += centerDirection.x * 4 * delta;
+        player.position.z += centerDirection.y * 4 * delta;
+    }
 
-  player.position.y += player.velocity.y * delta;
+    const groundHeight = welt.getGroundHeight(
+        player.position.x,
+        player.position.z
+    );
 
-  const groundHeight = welt.getGroundHeight(
-    player.position.x,
-    player.position.z
-  );
+    if (player.position.y <= groundHeight) {
+        player.position.y = groundHeight;
+        player.velocity.y = 0;
 
-  if (player.position.y <= groundHeight) {
-    player.position.y = groundHeight;
-    player.velocity.y = 0;
+        player.grounded = true;
+        phase = PHASE.PLAYING;
 
-    player.grounded = true;
-    phase = PHASE.PLAYING;
+        notify("LANDUNG ERFOLGREICH!");
+    }
 
-    notify("LANDE ERFOLGREICH!");
-  }
+    camera.position.set(
+        player.position.x,
+        player.position.y + player.eyeHeight,
+        player.position.z
+    );
 
-  camera.position.set(
-    player.position.x,
-    player.position.y + CONFIG.eyeHeight,
-    player.position.z
-  );
+    if (player.position.y < -40) {
+        die();
+    }
 }
 
 // ==========================================
-// SPIELER-STATUS
+// HUD AKTUALISIERUNG
 // ==========================================
 
 let hudTimer = 0;
 
 function updateHUD(delta) {
-  hudTimer += delta;
+    hudTimer += delta;
 
-  if (hudTimer < 0.05) return;
+    if (hudTimer < 0.05) return;
 
-  hudTimer = 0;
+    hudTimer = 0;
 
-  updateUI();
+    updateUI();
 }
 
 // ==========================================
-// SERVER-POSITION
+// SERVERPOSITION SENDEN
 // ==========================================
 
 let networkTimer = 0;
 
 function sendPlayerPosition(delta) {
-  networkTimer += delta;
+    networkTimer += delta;
 
-  if (networkTimer < 0.05) return;
+    if (networkTimer < CONFIG.networkInterval) return;
 
-  networkTimer = 0;
+    networkTimer = 0;
 
-  if (socket.readyState !== WebSocket.OPEN) return;
-  if (!matchStarted || !hasJumped) return;
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    if (!matchStarted || !hasJumped) return;
 
-  socket.send(JSON.stringify({
-    type: "position",
-    x: player.position.x,
-    y: player.position.y,
-    z: player.position.z
-  }));
+    socket.send(JSON.stringify({
+        type: "position",
+        x: player.position.x,
+        y: player.position.y,
+        z: player.position.z
+    }));
 }
 
 // ==========================================
@@ -854,53 +1039,56 @@ function sendPlayerPosition(delta) {
 // ==========================================
 
 function damage(amount) {
-  if (!player.alive || amount <= 0) return;
+    if (!player.alive || amount <= 0) return;
 
-  let remaining = amount;
+    let remaining = amount;
 
-  const shieldDamage = Math.min(
-    player.shield,
-    remaining
-  );
+    const shieldDamage = Math.min(
+        player.shield,
+        remaining
+    );
 
-  player.shield -= shieldDamage;
-  remaining -= shieldDamage;
+    player.shield -= shieldDamage;
+    remaining -= shieldDamage;
 
-  if (remaining > 0) {
-    player.health -= remaining;
-  }
+    if (remaining > 0) {
+        player.health -= remaining;
+    }
 
-  player.health = Math.max(0, player.health);
+    player.health = Math.max(
+        0,
+        player.health
+    );
 
-  updateUI();
+    updateUI();
 
-  notify("DU WURDEST GETROFFEN!");
+    notify("DU WURDEST GETROFFEN!");
 
-  if (player.health <= 0) {
-    die();
-  }
+    if (player.health <= 0) {
+        die();
+    }
 }
 
 function heal(amount) {
-  if (!player.alive || amount <= 0) return;
+    if (!player.alive || amount <= 0) return;
 
-  player.health = Math.min(
-    player.maxHealth,
-    player.health + amount
-  );
+    player.health = Math.min(
+        player.maxHealth,
+        player.health + amount
+    );
 
-  updateUI();
+    updateUI();
 }
 
 function restoreShield(amount) {
-  if (!player.alive || amount <= 0) return;
+    if (!player.alive || amount <= 0) return;
 
-  player.shield = Math.min(
-    player.maxShield,
-    player.shield + amount
-  );
+    player.shield = Math.min(
+        player.maxShield,
+        player.shield + amount
+    );
 
-  updateUI();
+    updateUI();
 }
 
 // ==========================================
@@ -908,16 +1096,16 @@ function restoreShield(amount) {
 // ==========================================
 
 function die() {
-  if (!player.alive) return;
+    if (!player.alive) return;
 
-  player.alive = false;
-  player.velocity.set(0, 0, 0);
+    player.alive = false;
+    player.velocity.set(0, 0, 0);
 
-  phase = PHASE.DEAD;
+    phase = PHASE.DEAD;
 
-  document.exitPointerLock?.();
+    document.exitPointerLock?.();
 
-  UI?.showDeath?.();
+    UI?.showDeath?.();
 }
 
 // ==========================================
@@ -925,44 +1113,44 @@ function die() {
 // ==========================================
 
 function respawn(position = new THREE.Vector3(0, 0, 0)) {
-  player.position.copy(position);
+    player.position.copy(position);
 
-  player.position.y = welt.getGroundHeight(
-    position.x,
-    position.z
-  );
+    player.position.y = welt.getGroundHeight(
+        position.x,
+        position.z
+    );
 
-  player.velocity.set(0, 0, 0);
+    player.velocity.set(0, 0, 0);
 
-  player.health = player.maxHealth;
-  player.shield = player.maxShield;
-  player.stamina = player.maxStamina;
+    player.health = player.maxHealth;
+    player.shield = player.maxShield;
+    player.stamina = player.maxStamina;
 
-  player.alive = true;
-  player.grounded = true;
+    player.alive = true;
+    player.grounded = true;
 
-  player.crouching = false;
-  player.sprinting = false;
-  player.eyeHeight = CONFIG.eyeHeight;
+    player.crouching = false;
+    player.sprinting = false;
+    player.eyeHeight = CONFIG.eyeHeight;
 
-  yaw = 0;
-  pitch = 0;
+    yaw = 0;
+    pitch = 0;
 
-  phase = PHASE.PLAYING;
+    phase = PHASE.PLAYING;
 
-  camera.rotation.set(0, 0, 0);
+    camera.rotation.set(0, 0, 0);
 
-  camera.position.set(
-    player.position.x,
-    player.position.y + CONFIG.eyeHeight,
-    player.position.z
-  );
+    camera.position.set(
+        player.position.x,
+        player.position.y + CONFIG.eyeHeight,
+        player.position.z
+    );
 
-  UI?.hideDeath?.();
+    UI?.hideDeath?.();
 
-  updateUI();
+    updateUI();
 
-  canvas.requestPointerLock?.();
+    canvas.requestPointerLock?.();
 }
 
 // ==========================================
@@ -970,23 +1158,23 @@ function respawn(position = new THREE.Vector3(0, 0, 0)) {
 // ==========================================
 
 function pauseGame() {
-  if (paused || !player.alive || !hasJumped) return;
+    if (paused || !player.alive || !hasJumped) return;
 
-  paused = true;
+    paused = true;
 
-  document.exitPointerLock?.();
+    document.exitPointerLock?.();
 
-  UI?.showPause?.();
+    UI?.showPause?.();
 }
 
 function resumeGame() {
-  if (!paused || !player.alive) return;
+    if (!paused || !player.alive) return;
 
-  paused = false;
+    paused = false;
 
-  UI?.hidePause?.();
+    UI?.hidePause?.();
 
-  canvas.requestPointerLock?.();
+    canvas.requestPointerLock?.();
 }
 
 // ==========================================
@@ -994,18 +1182,22 @@ function resumeGame() {
 // ==========================================
 
 document.addEventListener("pointerlockchange", () => {
-  const locked = document.pointerLockElement === canvas;
+    const locked = document.pointerLockElement === canvas;
 
-  if (!hasJumped || !player.alive) return;
+    if (!hasJumped || !player.alive) return;
 
-  if (locked) {
-    if (paused) {
-      paused = false;
-      UI?.hidePause?.();
+    if (locked) {
+        if (paused) {
+            paused = false;
+            UI?.hidePause?.();
+        }
+    } else if (
+        gameStarted &&
+        !paused &&
+        player.alive
+    ) {
+        pauseGame();
     }
-  } else if (gameStarted && !paused && player.alive) {
-    pauseGame();
-  }
 });
 
 // ==========================================
@@ -1013,17 +1205,19 @@ document.addEventListener("pointerlockchange", () => {
 // ==========================================
 
 window.addEventListener("resize", () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
+    camera.aspect =
+        window.innerWidth / window.innerHeight;
 
-  renderer.setSize(
-    window.innerWidth,
-    window.innerHeight
-  );
+    camera.updateProjectionMatrix();
 
-  renderer.setPixelRatio(
-    Math.min(window.devicePixelRatio, 2)
-  );
+    renderer.setSize(
+        window.innerWidth,
+        window.innerHeight
+    );
+
+    renderer.setPixelRatio(
+        Math.min(window.devicePixelRatio, 1.75)
+    );
 });
 
 // ==========================================
@@ -1031,27 +1225,27 @@ window.addEventListener("resize", () => {
 // ==========================================
 
 document.getElementById("resume-button")?.addEventListener(
-  "click",
-  resumeGame
+    "click",
+    resumeGame
 );
 
 document.getElementById("menu-button")?.addEventListener(
-  "click",
-  () => {
-    window.location.href = "lobby.html";
-  }
+    "click",
+    () => {
+        window.location.href = "./lobby.html";
+    }
 );
 
 document.getElementById("respawn-button")?.addEventListener(
-  "click",
-  () => respawn()
+    "click",
+    () => respawn()
 );
 
 document.getElementById("death-lobby-button")?.addEventListener(
-  "click",
-  () => {
-    window.location.href = "lobby.html";
-  }
+    "click",
+    () => {
+        window.location.href = "./lobby.html";
+    }
 );
 
 // ==========================================
@@ -1061,40 +1255,43 @@ document.getElementById("death-lobby-button")?.addEventListener(
 const clock = new THREE.Clock();
 
 function animate() {
-  requestAnimationFrame(animate);
+    requestAnimationFrame(animate);
 
-  const delta = Math.min(clock.getDelta(), 0.05);
+    const delta = Math.min(
+        clock.getDelta(),
+        0.05
+    );
 
-  if (matchStarted && player.alive && !paused) {
-    // Flugzeug fliegt über die Insel.
-    if (phase === PHASE.FLIGHT) {
-      plane.update(delta);
+    if (matchStarted && player.alive && !paused) {
 
-      updatePlayerInPlane();
+        // Flugzeugphase
+        if (phase === PHASE.FLIGHT) {
+            plane.update(delta);
+            updatePlayerInPlane();
+        }
 
-      if (planeFinished) {
-        // Der Spieler kann weiterhin abspringen.
-      }
+        // Absprung
+        if (phase === PHASE.FALLING) {
+            updateFalling(delta);
+        }
+
+        // Normales Gameplay
+        if (phase === PHASE.PLAYING) {
+            updateCrouch(delta);
+            updateMovement(delta);
+        }
+
+        updateHUD(delta);
+        sendPlayerPosition(delta);
+
+    } else if (
+        phase === PHASE.FLIGHT &&
+        matchStarted
+    ) {
+        updateExternalPlaneCamera();
     }
 
-    // Freier Fall nach dem Absprung.
-    if (phase === PHASE.FALLING) {
-      updateFalling(delta);
-    }
-
-    // Normales Gameplay nach der Landung.
-    if (phase === PHASE.PLAYING) {
-      updateCrouch(delta);
-      updateMovement(delta);
-    }
-
-    updateHUD(delta);
-    sendPlayerPosition(delta);
-  } else if (phase === PHASE.FLIGHT && matchStarted) {
-    updateExternalPlaneCamera();
-  }
-
-  renderer.render(scene, camera);
+    renderer.render(scene, camera);
 }
 
 // ==========================================
@@ -1102,46 +1299,50 @@ function animate() {
 // ==========================================
 
 window.CubeWars = {
-  player,
-  camera,
-  scene,
-  renderer,
-  welt,
-  plane,
+    player,
+    camera,
+    scene,
+    renderer,
+    welt,
+    plane,
 
-  damage,
-  heal,
-  restoreShield,
-  respawn,
+    damage,
+    heal,
+    restoreShield,
+    respawn,
 
-  selectSlot,
+    selectSlot,
 
-  pause: pauseGame,
-  resume: resumeGame,
+    pause: pauseGame,
+    resume: resumeGame,
 
-  get phase() {
-    return phase;
-  },
+    get phase() {
+        return phase;
+    },
 
-  get paused() {
-    return paused;
-  },
+    get paused() {
+        return paused;
+    },
 
-  get mouseLocked() {
-    return document.pointerLockElement === canvas;
-  },
+    get mouseLocked() {
+        return document.pointerLockElement === canvas;
+    },
 
-  get started() {
-    return gameStarted;
-  },
+    get started() {
+        return gameStarted;
+    },
 
-  get matchStarted() {
-    return matchStarted;
-  },
+    get matchStarted() {
+        return matchStarted;
+    },
 
-  get hasJumped() {
-    return hasJumped;
-  }
+    get hasJumped() {
+        return hasJumped;
+    },
+
+    get playerCount() {
+        return playerCount;
+    }
 };
 
 // ==========================================
@@ -1149,12 +1350,13 @@ window.CubeWars = {
 // ==========================================
 
 showQueue(
-  "VERBINDE MIT SERVER",
-  "Warte auf Serververbindung ...",
-  "0 / 2"
+    "VERBINDE MIT SERVER",
+    "Warte auf Serververbindung ...",
+    "0 / 2"
 );
 
 updateUI();
+
 animate();
 
 console.log("CUBE WARS Engine geladen.");
