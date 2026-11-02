@@ -1,0 +1,431 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUBE WARS - Lobby</title>
+
+<style>
+*{box-sizing:border-box}
+
+body{
+ margin:0;
+ overflow:hidden;
+ background:#071522;
+ font-family:Arial,sans-serif;
+ color:white;
+}
+
+canvas{
+ position:fixed;
+ inset:0;
+ z-index:0;
+}
+
+.ui{
+ position:fixed;
+ inset:0;
+ z-index:2;
+ display:flex;
+ flex-direction:column;
+ align-items:center;
+ justify-content:center;
+ background:linear-gradient(
+  180deg,#07152222 0%,transparent 50%,#071522aa 100%
+ );
+}
+
+.logo{
+ text-align:center;
+ margin-top:-70px;
+}
+
+.logo h1{
+ font-size:clamp(48px,9vw,105px);
+ font-weight:1000;
+ letter-spacing:8px;
+ margin:0;
+ color:white;
+ text-shadow:
+  0 4px 0 #1685bd,
+  0 8px 0 #07517e,
+  0 0 35px #32baff;
+}
+
+.logo h2{
+ color:#55caff;
+ letter-spacing:9px;
+ font-size:17px;
+ margin-top:12px;
+}
+
+.description{
+ color:#d1e9fa;
+ font-size:14px;
+ letter-spacing:3px;
+ margin-top:25px;
+}
+
+.start{
+ margin-top:55px;
+ width:250px;
+ padding:20px;
+ border:2px solid #8ce1ff;
+ border-radius:12px;
+ background:linear-gradient(135deg,#36baff,#0875c4);
+ color:white;
+ font-size:23px;
+ font-weight:900;
+ letter-spacing:5px;
+ cursor:pointer;
+ box-shadow:0 0 30px #26aaff88;
+ transition:.2s;
+}
+
+.start:hover{
+ transform:scale(1.08);
+ box-shadow:0 0 55px #26aaff;
+}
+
+.bottom{
+ position:absolute;
+ bottom:25px;
+ font-size:12px;
+ color:#9ebbd0;
+ letter-spacing:3px;
+}
+
+.top-left{
+ position:absolute;
+ top:25px;
+ left:30px;
+ font-size:13px;
+ letter-spacing:3px;
+ color:#62caff;
+}
+
+.version{
+ position:absolute;
+ top:25px;
+ right:30px;
+ color:#9ebbd0;
+ font-size:12px;
+}
+
+#loading{
+ display:none;
+ position:fixed;
+ inset:0;
+ z-index:5;
+ background:#071522;
+ align-items:center;
+ justify-content:center;
+ flex-direction:column;
+}
+
+#loading h1{
+ color:#50c9ff;
+ letter-spacing:8px;
+}
+
+.bar{
+ width:250px;
+ height:8px;
+ background:#253b50;
+ border-radius:10px;
+ overflow:hidden;
+}
+
+.progress{
+ height:100%;
+ width:0;
+ background:#40c4ff;
+ transition:width .1s;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="ui">
+
+ <div class="top-left">CUBE WARS</div>
+ <div class="version">BETA VERSION 0.1</div>
+
+ <div class="logo">
+  <h1>CUBE WARS</h1>
+  <h2>THE BLOCK BATTLE</h2>
+ </div>
+
+ <div class="description">
+  BEREIT FÜR DIE SCHLACHT?
+ </div>
+
+ <button class="start" id="start">
+  SPIELEN
+ </button>
+
+ <div class="bottom">
+  © CUBE WARS · ALL RIGHTS RESERVED
+ </div>
+
+</div>
+
+<div id="loading">
+ <h1>CUBE WARS</h1>
+ <p>SPIEL WIRD GESTARTET...</p>
+ <div class="bar">
+  <div class="progress" id="progress"></div>
+ </div>
+</div>
+
+<script type="importmap">
+{
+ "imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"
+ }
+}
+</script>
+
+<script type="module">
+
+import * as THREE from "three";
+
+// SZENE
+
+const scene=new THREE.Scene();
+
+scene.background=new THREE.Color(0x83c8ed);
+scene.fog=new THREE.Fog(0x83c8ed,35,110);
+
+const camera=new THREE.PerspectiveCamera(
+ 65,innerWidth/innerHeight,.1,200
+);
+
+camera.position.set(0,9,25);
+camera.lookAt(0,2,0);
+
+const renderer=new THREE.WebGLRenderer({
+ antialias:true
+});
+
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+
+document.body.appendChild(renderer.domElement);
+
+// LICHT
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x496b85,2));
+
+const sun=new THREE.DirectionalLight(0xffffff,2.5);
+sun.position.set(-20,30,20);
+sun.castShadow=true;
+scene.add(sun);
+
+// BODEN
+
+const ground=new THREE.Mesh(
+ new THREE.PlaneGeometry(180,180),
+ new THREE.MeshStandardMaterial({color:0x477c43})
+);
+
+ground.rotation.x=-Math.PI/2;
+ground.position.y=-1;
+ground.receiveShadow=true;
+scene.add(ground);
+
+// WÜRFEL-LANDSCHAFT
+
+function block(x,y,z,sx,sy,sz,color){
+ const mesh=new THREE.Mesh(
+  new THREE.BoxGeometry(sx,sy,sz),
+  new THREE.MeshStandardMaterial({color})
+ );
+
+ mesh.position.set(x,y,z);
+ mesh.castShadow=true;
+ mesh.receiveShadow=true;
+ scene.add(mesh);
+ return mesh;
+}
+
+// Berge
+
+for(let i=0;i<25;i++){
+ const angle=i/25*Math.PI*2;
+ const radius=40+Math.random()*20;
+ const x=Math.cos(angle)*radius;
+ const z=Math.sin(angle)*radius;
+
+ block(
+  x,Math.random()*5+2,z,
+  8+Math.random()*10,
+  8+Math.random()*12,
+  8+Math.random()*10,
+  0x688b9d
+ );
+}
+
+// Bäume
+
+function tree(x,z){
+ block(x,1,z,.8,3,.8,0x765033);
+ block(x,3,z,3,3,3,0x24783d);
+ block(x,4.5,z,2,2,2,0x39994a);
+}
+
+for(let i=0;i<65;i++){
+ const x=(Math.random()-.5)*75;
+ const z=(Math.random()-.5)*75;
+
+ if(Math.abs(x)<12&&Math.abs(z)<12)continue;
+ tree(x,z);
+}
+
+// SCHWEBENDE DEKOWÜRFEL
+
+const floating=[];
+
+for(let i=0;i<30;i++){
+ const size=.4+Math.random()*1.2;
+
+ const cube=new THREE.Mesh(
+  new THREE.BoxGeometry(size,size,size),
+  new THREE.MeshStandardMaterial({
+   color:new THREE.Color().setHSL(
+    .52+Math.random()*.12,.8,.55
+   ),
+   emissive:0x087bb0,
+   emissiveIntensity:.3
+  })
+ );
+
+ cube.position.set(
+  (Math.random()-.5)*65,
+  2+Math.random()*14,
+  (Math.random()-.5)*65
+ );
+
+ cube.rotation.set(
+  Math.random()*3,
+  Math.random()*3,
+  Math.random()*3
+ );
+
+ scene.add(cube);
+
+ floating.push({
+  cube,
+  speed:.3+Math.random()
+ });
+}
+
+// GROSSE DEKO-WÜRFEL
+
+const heroCube=block(
+ 0,2,-8,5,5,5,0x258fd0
+);
+
+heroCube.material.emissive=new THREE.Color(0x064d91);
+heroCube.material.emissiveIntensity=.5;
+
+// PARTIKEL
+
+const particlesGeometry=new THREE.BufferGeometry();
+const particlePositions=[];
+
+for(let i=0;i<350;i++){
+ particlePositions.push(
+  (Math.random()-.5)*100,
+  Math.random()*35,
+  (Math.random()-.5)*100
+ );
+}
+
+particlesGeometry.setAttribute(
+ "position",
+ new THREE.Float32BufferAttribute(particlePositions,3)
+);
+
+const particles=new THREE.Points(
+ particlesGeometry,
+ new THREE.PointsMaterial({
+  color:0xc8efff,
+  size:.16,
+  transparent:true,
+  opacity:.8
+ })
+);
+
+scene.add(particles);
+
+// ANIMATION
+
+const clock=new THREE.Clock();
+
+function animate(){
+ requestAnimationFrame(animate);
+
+ const t=clock.getElapsedTime();
+
+ heroCube.rotation.y=t*.25;
+ heroCube.rotation.x=Math.sin(t*.5)*.12;
+ heroCube.position.y=2+Math.sin(t)*.35;
+
+ floating.forEach((item,i)=>{
+  item.cube.rotation.x+=.002*item.speed;
+  item.cube.rotation.y+=.004*item.speed;
+  item.cube.position.y+=Math.sin(t+i)*.002;
+ });
+
+ particles.rotation.y=t*.008;
+
+ camera.position.x=Math.sin(t*.12)*1.5;
+ camera.position.y=9+Math.sin(t*.4)*.3;
+ camera.lookAt(0,2,0);
+
+ renderer.render(scene,camera);
+}
+
+animate();
+
+// START
+
+document.getElementById("start").onclick=()=>{
+ document.querySelector(".ui").style.display="none";
+
+ const loading=document.getElementById("loading");
+ loading.style.display="flex";
+
+ let progress=0;
+
+ const interval=setInterval(()=>{
+  progress+=2;
+  document.getElementById("progress").style.width=progress+"%";
+
+  if(progress>=100){
+   clearInterval(interval);
+
+   // Hier wird später das eigentliche Spiel geöffnet.
+   window.location.href="game.html";
+  }
+ },35);
+};
+
+// GRÖSSE
+
+window.addEventListener("resize",()=>{
+ camera.aspect=innerWidth/innerHeight;
+ camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth,innerHeight);
+});
+
+</script>
+
+</body>
+</html>
