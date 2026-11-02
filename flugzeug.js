@@ -118,7 +118,6 @@ export class Flugzeug {
 
         const B = this.materials;
 
-        // Hauptkörper
         this.box(
             "Haupt-Rumpf",
             17, 3.5, 4.5,
@@ -126,7 +125,6 @@ export class Flugzeug {
             -0.5, 0, 0
         );
 
-        // Verstärkte Unterseite
         this.box(
             "Unterer Rumpf",
             14, 0.8, 4.2,
@@ -134,7 +132,6 @@ export class Flugzeug {
             -0.5, -2, 0
         );
 
-        // Oberer Panzerstreifen
         this.box(
             "Oberer Rumpf",
             12, 0.35, 4.2,
@@ -142,7 +139,6 @@ export class Flugzeug {
             -1, 1.85, 0
         );
 
-        // Hinterer Rumpfbereich
         this.box(
             "Heckbereich",
             5, 2.7, 4.1,
@@ -150,7 +146,6 @@ export class Flugzeug {
             -7.8, 0, 0
         );
 
-        // Nasenbereich
         this.box(
             "Nase",
             3.5, 2.6, 3.8,
@@ -158,7 +153,6 @@ export class Flugzeug {
             8.8, 0, 0
         );
 
-        // Unterer Nasenschutz
         this.box(
             "Nasenpanzer",
             2.8, 0.7, 3.4,
@@ -166,7 +160,6 @@ export class Flugzeug {
             9.1, -1.4, 0
         );
 
-        // Panzerplatten an den Seiten
         for (let i = 0; i < 7; i++) {
 
             const x = 5 - i * 1.8;
@@ -186,7 +179,6 @@ export class Flugzeug {
             );
         }
 
-        // Untere Streifen
         this.box(
             "Warnstreifen",
             12, 0.12, 0.08,
@@ -217,7 +209,6 @@ export class Flugzeug {
             7.5, 1.5, 0
         );
 
-        // Frontfenster
         this.box(
             "Frontfenster links",
             0.12, 1.35, 1.5,
@@ -232,7 +223,6 @@ export class Flugzeug {
             9.15, 0.8, -0.9
         );
 
-        // Seitenfenster
         for (let i = 0; i < 3; i++) {
 
             const z = 1.8 - i * 1.8;
@@ -245,7 +235,6 @@ export class Flugzeug {
             );
         }
 
-        // Fensterrahmen
         this.box(
             "Cockpit-Rahmen",
             0.15, 1.5, 3.8,
@@ -262,7 +251,6 @@ export class Flugzeug {
 
         const B = this.materials;
 
-        // Hauptflügel
         this.box(
             "Hauptflügel",
             5.5, 0.45, 23,
@@ -270,7 +258,6 @@ export class Flugzeug {
             0, 0.4, 0
         );
 
-        // Verstärkungen
         this.box(
             "Flügelverstärkung",
             4, 0.3, 19,
@@ -278,7 +265,6 @@ export class Flugzeug {
             -0.2, 0.15, 0
         );
 
-        // Flügelspitzen
         for (const side of [-1, 1]) {
 
             this.box(
@@ -294,10 +280,6 @@ export class Flugzeug {
                 B.white,
                 0.3, 0.72, side * 8
             );
-        }
-
-        // Hintere Flügelklappen
-        for (const side of [-1, 1]) {
 
             this.box(
                 "Flügelklappe",
@@ -307,7 +289,6 @@ export class Flugzeug {
             );
         }
 
-        // Antennen
         this.cylinder(
             "Flügelantenne",
             0.08, 0.08, 1.5,
@@ -318,7 +299,7 @@ export class Flugzeug {
     }
 
     // ======================================
-    // GROSSE TRIEBWERKE
+    // TRIEBWERKE
     // ======================================
 
     createEngines() {
@@ -329,7 +310,6 @@ export class Flugzeug {
 
             const z = side * 6.3;
 
-            // Große Triebwerksgondel
             this.box(
                 "Große Triebwerksgondel",
                 5.5, 2.7, 3.4,
@@ -337,7 +317,6 @@ export class Flugzeug {
                 0, -1.5, z
             );
 
-            // Außenpanzerung
             this.box(
                 "Triebwerks-Panzerung",
                 4.7, 2.9, 0.2,
@@ -345,7 +324,6 @@ export class Flugzeug {
                 0, -1.5, z + side * 1.75
             );
 
-            // Dunkle Triebwerksöffnung
             this.cylinder(
                 "Triebwerksöffnung",
                 1.05, 1.25, 0.35,
@@ -354,7 +332,6 @@ export class Flugzeug {
                 Math.PI / 2
             );
 
-            // Innerer Triebwerksring
             this.cylinder(
                 "Triebwerksring",
                 0.7, 0.85, 0.12,
@@ -363,7 +340,6 @@ export class Flugzeug {
                 Math.PI / 2
             );
 
-            // Heckauslass
             this.cylinder(
                 "Triebwerksauslass",
                 0.85, 0.85, 0.4,
@@ -372,7 +348,6 @@ export class Flugzeug {
                 Math.PI / 2
             );
 
-            // Seitliche Wartungsplatten
             for (let i = 0; i < 3; i++) {
 
                 this.box(
@@ -395,7 +370,6 @@ export class Flugzeug {
 
         const B = this.materials;
 
-        // Höhenleitwerk
         this.box(
             "Höhenleitwerk",
             3.5, 0.4, 10,
@@ -403,7 +377,6 @@ export class Flugzeug {
             -7.2, 1.1, 0
         );
 
-        // Seitenleitwerk
         this.box(
             "Seitenleitwerk",
             3, 5, 0.6,
@@ -411,7 +384,6 @@ export class Flugzeug {
             -7.8, 3, 0
         );
 
-        // Heckmarkierung
         this.box(
             "Heckmarkierung",
             0.2, 2.7, 0.15,
@@ -419,7 +391,6 @@ export class Flugzeug {
             -7.8, 3, 0.36
         );
 
-        // Heckantenne
         this.cylinder(
             "Heckantenne",
             0.06, 0.06, 1.8,
@@ -438,7 +409,6 @@ export class Flugzeug {
 
         for (const side of [-1, 1]) {
 
-            // Fahrwerksbein
             this.cylinder(
                 "Fahrwerksbein",
                 0.18, 0.25, 2.2,
@@ -446,7 +416,6 @@ export class Flugzeug {
                 0, -2.5, side * 3.3
             );
 
-            // Rad
             const wheel = new THREE.Mesh(
                 new THREE.CylinderGeometry(
                     0.65, 0.65, 0.35, 12
@@ -460,7 +429,6 @@ export class Flugzeug {
             this.group.add(wheel);
         }
 
-        // Hinteres Fahrwerk
         this.cylinder(
             "Hinteres Fahrwerksbein",
             0.12, 0.16, 1.6,
@@ -477,10 +445,6 @@ export class Flugzeug {
 
         const B = this.materials;
 
-        // Rechte Seite = positive Z-Richtung.
-        // Die große Öffnung bleibt frei.
-
-        // Türrahmen oben
         this.box(
             "Türrahmen oben",
             5.2, 0.25, 0.25,
@@ -488,7 +452,6 @@ export class Flugzeug {
             -1.7, 1.65, 2.42
         );
 
-        // Türrahmen unten
         this.box(
             "Türrahmen unten",
             5.2, 0.25, 0.25,
@@ -496,7 +459,6 @@ export class Flugzeug {
             -1.7, -1.65, 2.42
         );
 
-        // Hinterer Türrahmen
         this.box(
             "Türrahmen hinten",
             0.25, 3.1, 0.25,
@@ -504,7 +466,6 @@ export class Flugzeug {
             -4.3, 0, 2.42
         );
 
-        // Offene Tür: seitlich nach außen geklappt
         const door = this.box(
             "Offene Frachttür",
             5.2, 3.2, 0.25,
@@ -514,7 +475,6 @@ export class Flugzeug {
 
         door.rotation.y = 0;
 
-        // Türinnenseite
         this.box(
             "Tür-Innenverkleidung",
             4.6, 2.7, 0.08,
@@ -522,7 +482,6 @@ export class Flugzeug {
             -1.7, 0, 4.05
         );
 
-        // Boden der offenen Ladeöffnung
         this.box(
             "Ladeflächenboden",
             5.3, 0.2, 3.1,
@@ -530,7 +489,6 @@ export class Flugzeug {
             -1.7, -1.85, 0
         );
 
-        // Bodenstreifen
         for (let i = 0; i < 5; i++) {
 
             this.box(
@@ -543,7 +501,6 @@ export class Flugzeug {
             );
         }
 
-        // Innenbeleuchtung
         this.box(
             "Tür-Innenlicht",
             0.2, 0.2, 2.5,
@@ -553,7 +510,7 @@ export class Flugzeug {
     }
 
     // ======================================
-    // DEKORATIVE GATLING-ATTRAPPE
+    // DEKORATIVE ATTRAPPE
     // ======================================
 
     createDecorativeGatling() {
@@ -564,7 +521,6 @@ export class Flugzeug {
 
         gun.position.set(-2.2, -0.3, 2.85);
 
-        // Halterung
         const mount = new THREE.Mesh(
             new THREE.BoxGeometry(1.4, 0.6, 1.2),
             B.dark
@@ -572,7 +528,6 @@ export class Flugzeug {
 
         gun.add(mount);
 
-        // Gehäuse
         const housing = new THREE.Mesh(
             new THREE.BoxGeometry(1.2, 0.8, 1.2),
             B.armor
@@ -580,9 +535,6 @@ export class Flugzeug {
 
         housing.position.set(0.5, 0.1, 0);
         gun.add(housing);
-
-        // Statische, rein dekorative Rohrgruppe
-        // Keine Schussfunktion und keine Mechanik.
 
         const barrelMaterial = B.black;
 
@@ -608,7 +560,6 @@ export class Flugzeug {
             gun.add(barrel);
         }
 
-        // Schutzschild
         const shield = new THREE.Mesh(
             new THREE.BoxGeometry(0.2, 1.3, 1.8),
             B.armor
@@ -621,14 +572,13 @@ export class Flugzeug {
     }
 
     // ======================================
-    // KLEINE DETAILS
+    // DETAILS
     // ======================================
 
     createDetails() {
 
         const B = this.materials;
 
-        // Wartungsklappen am Rumpf
         for (let i = 0; i < 8; i++) {
 
             this.box(
@@ -641,7 +591,6 @@ export class Flugzeug {
             );
         }
 
-        // Kleine Sensoren
         this.box(
             "Sensor",
             0.6, 0.3, 0.5,
@@ -649,7 +598,6 @@ export class Flugzeug {
             4, 2, -0.5
         );
 
-        // Antennen
         this.cylinder(
             "Dachantenne",
             0.06, 0.06, 1.2,
@@ -657,7 +605,6 @@ export class Flugzeug {
             -2, 2.6, -0.5
         );
 
-        // Seitliche Militärmarkierungen
         this.box(
             "Markierung",
             1.2, 0.7, 0.08,
@@ -671,14 +618,10 @@ export class Flugzeug {
             B.yellow,
             3, 0, 2.38
         );
-
-        // Kleine Positionsleuchten
-        this.createLight(0x35ff88, 0, 0.5, 11.7);
-        this.createLight(0xff3333, 0, 0.5, -11.7);
     }
 
     // ======================================
-    // LICHTER
+    // EINZELNES LICHT
     // ======================================
 
     createLight(color, x, y, z) {
@@ -706,6 +649,43 @@ export class Flugzeug {
     }
 
     // ======================================
+    // ALLE FLUGZEUGLICHTER
+    // ======================================
+
+    createLights() {
+
+        // Grüne Positionsleuchte
+        this.createLight(
+            0x35ff88,
+            0, 0.5, 11.7
+        );
+
+        // Rote Positionsleuchte
+        this.createLight(
+            0xff3333,
+            0, 0.5, -11.7
+        );
+
+        // Weißes Hecklicht
+        this.createLight(
+            0xffffff,
+            -8, 0.5, 0
+        );
+
+        // Innenbeleuchtung
+        const cargoLight = new THREE.PointLight(
+            0xffe6a0,
+            3,
+            12
+        );
+
+        cargoLight.position.set(-1.5, 1.2, 0);
+
+        this.group.add(cargoLight);
+        this.lights.push(cargoLight);
+    }
+
+    // ======================================
     // FLUG STARTEN
     // ======================================
 
@@ -728,7 +708,7 @@ export class Flugzeug {
     }
 
     // ======================================
-    // FLUGZEUG UPDATE
+    // UPDATE
     // ======================================
 
     update(delta) {
@@ -803,11 +783,11 @@ export class Flugzeug {
             if (object.geometry) {
                 object.geometry.dispose();
             }
-
-            // Materialien werden gemeinsam genutzt.
-            // Daher hier nicht einzeln entsorgen.
-
         });
+
+        for (const material of Object.values(this.materials)) {
+            material.dispose();
+        }
     }
 }
 
