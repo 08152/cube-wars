@@ -1,265 +1,220 @@
 
 <!DOCTYPE html>
 <html lang="de">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>CUBE WARS</title>
+
+    <link rel="stylesheet" href="./ui.css">
 
     <style>
         * {
             box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        html, body {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background: #000;
-            font-family: Arial, sans-serif;
-            color: white;
         }
 
         body {
-            position: relative;
+            margin: 0;
+            overflow: hidden;
+            background: #111722;
         }
 
-        /* Spielfläche */
-        #game-container {
+        #game-canvas {
             position: fixed;
             inset: 0;
             width: 100%;
             height: 100%;
-            overflow: hidden;
         }
 
-        /* 3D-Spielbereich */
-        #game-canvas {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
-
-        /* UI-Ebene */
         #ui-layer {
             position: fixed;
             inset: 0;
             pointer-events: none;
-            z-index: 10;
         }
 
-        /* Fadenkreuz */
-        #crosshair {
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            transform: translate(-50%, -50%);
-            display: none;
-            font-size: 25px;
-            color: white;
-        }
-
-        /* Spielerinformationen */
         #player-data {
-            position: absolute;
-            bottom: 25px;
-            left: 25px;
             display: none;
         }
 
-        /* Lebensanzeige */
-        #health-container {
-            width: 220px;
-            height: 17px;
-            background: #252525;
-            border: 2px solid white;
-            border-radius: 5px;
-            overflow: hidden;
-        }
-
-        #health-bar {
-            height: 100%;
-            width: 100%;
-            background: #39e66c;
-            transition: width .2s;
-        }
-
-        /* Ausdauer */
-        #stamina-container {
-            width: 220px;
-            height: 8px;
-            background: #252525;
-            border-radius: 5px;
-            overflow: hidden;
-            margin-top: 6px;
-        }
-
-        #stamina-bar {
-            height: 100%;
-            width: 100%;
-            background: #36baff;
-        }
-
-        /* Spielerstatus */
-        #player-status {
-            margin-bottom: 8px;
-            font-size: 13px;
-            font-weight: bold;
-        }
-
-        /* Spielinformationen */
         #game-info {
-            position: absolute;
-            top: 20px;
-            right: 25px;
-            text-align: right;
             display: none;
         }
 
-        /* Inventar */
         #inventory {
-            position: absolute;
-            bottom: 25px;
-            left: 50%;
-            transform: translateX(-50%);
             display: none;
-            gap: 6px;
         }
 
-        .inventory-slot {
-            width: 58px;
-            height: 58px;
-            background: #172432bb;
-            border: 2px solid #8da7b8;
-            border-radius: 7px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
+        #weapon-info {
+            display: none;
         }
 
-        .inventory-slot.active {
-            border: 3px solid #ffffff;
-            background: #318bc9aa;
+        #pause-menu,
+        #death-menu {
+            display: none;
         }
 
-        /* Lade-/Startsystem */
         #game-loading {
             position: fixed;
             inset: 0;
-            z-index: 100;
-            background: #071522;
+            z-index: 200;
             display: flex;
             justify-content: center;
             align-items: center;
             flex-direction: column;
-            gap: 15px;
+            gap: 18px;
+            background:
+                radial-gradient(
+                    circle at center,
+                    #233b59 0%,
+                    #101722 65%,
+                    #080d15 100%
+                );
         }
 
-        #game-loading h1 {
-            font-size: 45px;
-            letter-spacing: 8px;
-            color: #42bfff;
+        .loading-title {
+            font-size: clamp(35px, 7vw, 75px);
+            font-weight: 1000;
+            letter-spacing: 5px;
+            color: white;
+            text-shadow: 0 0 30px #168cff;
         }
 
-        #loading-text {
-            color: #b6d5e8;
-            font-size: 13px;
-            letter-spacing: 3px;
-        }
-
-        /* Pause */
-        #pause-menu {
-            position: fixed;
-            inset: 0;
-            z-index: 90;
-            background: #000b;
-            display: none;
-            justify-content: center;
-            align-items: center;
-            pointer-events: auto;
-        }
-
-        .pause-panel {
-            width: 350px;
-            padding: 30px;
-            background: #172a3b;
-            border: 1px solid #38baff;
-            border-radius: 15px;
-            text-align: center;
-        }
-
-        .pause-panel h2 {
-            margin-bottom: 25px;
-            color: #45bfff;
+        .loading-subtitle {
+            color: #9cb9d5;
+            font-size: 12px;
+            font-weight: bold;
             letter-spacing: 4px;
         }
 
-        .pause-panel button {
-            width: 100%;
-            padding: 13px;
-            margin-top: 10px;
-            border: 0;
-            border-radius: 7px;
-            background: #168ed0;
-            color: white;
-            font-size: 15px;
-            font-weight: bold;
-            cursor: pointer;
+        #loading-bar {
+            width: 240px;
+            height: 7px;
+            background: #26384c;
+            border-radius: 10px;
+            overflow: hidden;
         }
 
-        /* Versteckte Elemente */
-        .hidden {
-            display: none !important;
+        #loading-progress {
+            width: 0%;
+            height: 100%;
+            background: #27aaff;
+            box-shadow: 0 0 15px #27aaff;
+            animation: loading 0.8s ease forwards;
+        }
+
+        @keyframes loading {
+            to {
+                width: 100%;
+            }
+        }
+
+        #loading-text {
+            font-size: 11px;
+            color: #c6d8e9;
+            letter-spacing: 2px;
         }
     </style>
 </head>
 
 <body>
 
-    <!-- SPIELCONTAINER -->
-    <main id="game-container">
+    <!-- SPIEL-CANVAS -->
 
-        <!-- 3D-CANVAS -->
-        <canvas id="game-canvas"></canvas>
-
-    </main>
+    <canvas id="game-canvas"></canvas>
 
 
-    <!-- UI -->
+    <!-- LADEBILDSCHIRM -->
+
+    <div id="game-loading">
+
+        <div class="loading-title">
+            CUBE WARS
+        </div>
+
+        <div class="loading-subtitle">
+            BATTLE ROYALE
+        </div>
+
+        <div id="loading-bar">
+            <div id="loading-progress"></div>
+        </div>
+
+        <div id="loading-text">
+            SPIEL WIRD GELADEN ...
+        </div>
+
+    </div>
+
+
+    <!-- HUD -->
+
     <div id="ui-layer">
 
-        <!-- Fadenkreuz -->
-        <div id="crosshair">+</div>
+        <!-- FADENKREUZ -->
+
+        <div id="crosshair"></div>
 
 
-        <!-- SPIELERDATEN -->
-        <section id="player-data">
+        <!-- SPIELERSTATUS -->
+
+        <div id="player-data">
 
             <div id="player-status">
-                SPIELER
+
+                <div class="status-label">
+                    <span>LEBEN</span>
+                    <span id="health-value">100</span>
+                </div>
+
+                <div id="health-container">
+                    <div id="health-bar"></div>
+                </div>
+
             </div>
 
-            <div id="health-container">
-                <div id="health-bar"></div>
+
+            <!-- SCHILD -->
+
+            <div id="shield-status">
+
+                <div class="status-label">
+                    <span>SCHILD</span>
+                    <span id="shield-value">100</span>
+                </div>
+
+                <div id="shield-container">
+                    <div id="shield-bar"></div>
+                </div>
+
             </div>
 
-            <div id="stamina-container">
-                <div id="stamina-bar"></div>
+
+            <!-- AUSDAUER -->
+
+            <div id="stamina-status">
+
+                <div class="status-label">
+                    <span>AUSDAUER</span>
+                    <span id="stamina-value">100</span>
+                </div>
+
+                <div id="stamina-container">
+                    <div id="stamina-bar"></div>
+                </div>
+
             </div>
 
-        </section>
+        </div>
 
 
         <!-- SPIELINFORMATIONEN -->
-        <section id="game-info">
+
+        <div id="game-info">
 
             <div id="player-name">
-                CUBE WARS
+                SPIELER
             </div>
 
             <div id="kill-counter">
@@ -270,48 +225,97 @@
                 GEGNER: 0
             </div>
 
-        </section>
+        </div>
 
 
         <!-- INVENTAR -->
-        <section id="inventory">
 
-            <div class="inventory-slot active" data-slot="1">1</div>
-            <div class="inventory-slot" data-slot="2">2</div>
-            <div class="inventory-slot" data-slot="3">3</div>
-            <div class="inventory-slot" data-slot="4">4</div>
-            <div class="inventory-slot" data-slot="5">5</div>
+        <div id="inventory">
 
-        </section>
+            <div class="inventory-slot active" data-slot="1">
+                1
+            </div>
 
-    </div>
+            <div class="inventory-slot" data-slot="2">
+                2
+            </div>
 
+            <div class="inventory-slot" data-slot="3">
+                3
+            </div>
 
-    <!-- LADEANZEIGE -->
-    <div id="game-loading">
+            <div class="inventory-slot" data-slot="4">
+                4
+            </div>
 
-        <h1>CUBE WARS</h1>
+            <div class="inventory-slot" data-slot="5">
+                5
+            </div>
 
-        <div id="loading-text">
-            SPIEL WIRD INITIALISIERT
         </div>
+
+
+        <!-- WAFFENANZEIGE -->
+
+        <div id="weapon-info">
+
+            <div id="weapon-name">
+                ENERGIEBLASTER
+            </div>
+
+            <div id="ammo">
+                30 <span>/ 30</span>
+            </div>
+
+        </div>
+
+
+        <!-- BENACHRICHTIGUNGEN -->
+
+        <div id="notification-container"></div>
 
     </div>
 
 
     <!-- PAUSENMENÜ -->
+
     <div id="pause-menu">
 
         <div class="pause-panel">
 
             <h2>PAUSE</h2>
 
+            <p>Das Spiel wurde pausiert.</p>
+
             <button id="resume-button">
                 WEITERSPIELEN
             </button>
 
             <button id="menu-button">
-                ZURÜCK ZUR LOBBY
+                ZUR LOBBY
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- TODESMENÜ -->
+
+    <div id="death-menu">
+
+        <div class="pause-panel">
+
+            <h2>ELIMINIERT</h2>
+
+            <p>Du wurdest besiegt.</p>
+
+            <button id="respawn-button">
+                ERNEUT SPIELEN
+            </button>
+
+            <button id="death-lobby-button">
+                ZUR LOBBY
             </button>
 
         </div>
@@ -320,6 +324,7 @@
 
 
     <!-- THREE.JS -->
+
     <script type="importmap">
     {
         "imports": {
@@ -329,11 +334,11 @@
     </script>
 
 
-    <!-- SPIELSYSTEM -->
+    <!-- SPIELSYSTEME -->
+
+    <script type="module" src="./ui.js"></script>
     <script type="module" src="./game.js"></script>
 
-    <!-- UI-SYSTEM -->
-    <script type="module" src="./ui.js"></script>
-
 </body>
+
 </html>
