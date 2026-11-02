@@ -5,24 +5,36 @@ export class Welt {
     constructor(scene, options = {}) {
         this.scene = scene;
 
-        this.size = options.size ?? 600;
-        this.segments = options.segments ?? 400;
+        // Weltgröße: 5 Kilometer
+        this.size = options.size || 5000;
+        this.segments = options.segments || 500;
+
         this.halfSize = this.size / 2;
+        this.scale = this.size / 600;
 
         this.textures = {};
         this.textureLoader = new THREE.TextureLoader();
+
+        this.material = null;
+        this.terrain = null;
+        this.ocean = null;
+
+        this.seed = 12345;
+
+        this.rivers = this.createRivers();
+        this.biomes = this.createBiomes();
 
         this.loadTextures();
         this.createTerrain();
         this.createOcean();
     }
 
-    // ==========================================
+    // -----------------------------------------
     // TEXTUREN
-    // ==========================================
+    // -----------------------------------------
 
     loadTextures() {
-        const files = {
+        const textureFiles = {
             grass: "./grass.png",
             stone: "./stein.png",
             sand: "./sand.png",
@@ -30,20 +42,15 @@ export class Welt {
             jungle: "./jungle.png"
         };
 
-        for (const [name, path] of Object.entries(files)) {
+        for (const [name, path] of Object.entries(textureFiles)) {
             const texture = this.textureLoader.load(
                 path,
                 () => {
-                    console.log("CUBE WARS: Textur geladen:", name);
-                    texture.needsUpdate = true;
+                    console.log("Textur geladen:", path);
                 },
                 undefined,
                 (error) => {
-                    console.error(
-                        "CUBE WARS: Textur konnte nicht geladen werden:",
-                        path,
-                        error
-                    );
+                    console.error("Textur konnte nicht geladen werden:", path, error);
                 }
             );
 
@@ -57,266 +64,47 @@ export class Welt {
         }
     }
 
-    // ==========================================
-    // MATHEMATIK
-    // ==========================================
+    // -----------------------------------------
+    // BIOME
+    // -----------------------------------------
 
-    clamp(value, min, max) {
-        return Math.max(min, Math.min(max, value));
-    }
-
-    smoothstep(a, b, value) {
-        const t = this.clamp(
-            (value - a) / (b - a),
-            0,
-            1
-        );
-
-        return t * t * (3 - 2 * t);
-    }
-
-    noise(x, z) {
-        return (
-            Math.sin(x * 0.018 + z * 0.009) * 0.42 +
-            Math.cos(z * 0.025 - x * 0.013) * 0.30 +
-            Math.sin((x + z) * 0.042) * 0.16 +
-            Math.cos((x - z) * 0.009) * 0.12
-        );
-    }
-
-    // ==========================================
-    // INSEL
-    // ==========================================
-
-    distanceToIsland(x, z) {
-        const angle = Math.atan2(z, x);
-
-        const irregularity =
-            1 +
-            Math.sin(angle * 5 + 1.2) * 0.055 +
-            Math.cos(angle * 9 - 0.8) * 0.035 +
-            Math.sin(angle * 13 + 2.4) * 0.018;
-
-        const dx = x / (this.halfSize * 0.91);
-        const dz = z / (this.halfSize * 0.87);
-
-        return Math.sqrt(dx * dx + dz * dz) / irregularity;
-    }
-
-    islandMask(x, z) {
-        return 1 - this.smoothstep(
-            0.91,
-            1.035,
-            this.distanceToIsland(x, z)
-        );
-    }
-
-    isInsideWorld(x, z) {
-        return this.distanceToIsland(x, z) < 1.02;
-    }
-
-    // ==========================================
-    // NATÜRLICHE HÜGEL
-    // ==========================================
-
-    roundedHill(x, z, cx, cz, radiusX, radiusZ, height) {
-        const dx = (x - cx) / radiusX;
-        const dz = (z - cz) / radiusZ;
-
-        const distance = Math.sqrt(dx * dx + dz * dz);
-
-        const irregular =
-            this.noise(x * 1.3, z * 1.3) * 0.08;
-
-        const shape = Math.max(
-            0,
-            1 - distance + irregular
-        );
-
-        return height * shape * shape;
-    }
-
-    rollingHills(x, z) {
-        return (
-            Math.sin(x * 0.012 + z * 0.004) * 2.8 +
-            Math.cos(z * 0.014 - x * 0.006) * 2.2 +
-            Math.sin(x * 0.026 + z * 0.019) * 0.8 +
-            this.noise(x, z) * 2.2
-        );
-    }
-
-    // ==========================================
-    // FLUSSBETTEN
-    // ==========================================
-
-    getRiverData(x, z) {
-        // Hauptfluss: lang und leicht geschwungen.
-        const mainRiverPath =
-            Math.sin(x * 0.008) * 48 +
-            Math.sin(x * 0.019) * 12 -
-            25;
-
-        const mainDistance = Math.abs(z - mainRiverPath);
-
-        // Zweiter Flussarm.
-        const branchPath =
-            -Math.sin((x + 90) * 0.009) * 34 +
-            105;
-
-        const branchDistance = Math.abs(z - branchPath);
-
-        // Kleiner Nebenfluss.
-        const smallPath =
-            Math.sin((x - 110) * 0.014) * 19 -
-            135;
-
-        const smallDistance = Math.abs(z - smallPath);
-
-        const main = 1 - this.smoothstep(
-            4,
-            17,
-            mainDistance
-        );
-
-        const branch = 1 - this.smoothstep(
-            3,
-            11,
-            branchDistance
-        );
-
-        const small = 1 - this.smoothstep(
-            2.5,
-            8,
-            smallDistance
-        );
+    createBiomes() {
+        const s = this.scale;
 
         return {
-            main,
-            branch,
-            small,
-            combined: Math.max(
-                main,
-                branch * 0.8,
-                small * 0.65
-            )
+            desert: {
+                x: 155 * s,
+                z: 105 * s,
+                rx: 88 * s,
+                rz: 75 * s
+            },
+
+            ice: {
+                x: -125 * s,
+                z: -175 * s,
+                rx: 80 * s,
+                rz: 67 * s
+            },
+
+            jungle: {
+                x: -190 * s,
+                z: 125 * s,
+                rx: 58 * s,
+                rz: 48 * s
+            }
         };
     }
 
-    // ==========================================
-    // GELÄNDEHÖHE
-    // ==========================================
-
-    getHeightAt(x, z) {
-        const island = this.islandMask(x, z);
-
-        if (island <= 0.001) {
-            return -24;
-        }
-
-        let height = 5;
-
-        // Sanfte Grundlandschaft.
-        height += this.rollingHills(x, z);
-
-        // Breite, abgerundete Hügel.
-        height += this.roundedHill(
-            x, z, -105, -35, 115, 95, 17
-        );
-
-        height += this.roundedHill(
-            x, z, 55, 105, 105, 95, 13
-        );
-
-        height += this.roundedHill(
-            x, z, 145, -100, 85, 90, 12
-        );
-
-        height += this.roundedHill(
-            x, z, -190, 95, 65, 70, 10
-        );
-
-        height += this.roundedHill(
-            x, z, 5, -185, 75, 55, 8
-        );
-
-        height += this.roundedHill(
-            x, z, 190, 110, 50, 60, 7
-        );
-
-        // Kleine natürliche Unebenheiten.
-        height += this.noise(x * 1.8, z * 1.8) * 1.3;
-
-        // Flache Senken für die Flüsse.
-        const rivers = this.getRiverData(x, z);
-
-        height -= rivers.main * 2.8;
-        height -= rivers.branch * 2.1;
-        height -= rivers.small * 1.5;
-
-        // Breitere, sanfte Flusstäler.
-        height -= rivers.combined * 1.5;
-
-        // Küste: weicher Abfall ins Meer.
-        const coast = this.smoothstep(
-            0.82,
-            1.035,
-            this.distanceToIsland(x, z)
-        );
-
-        height = THREE.MathUtils.lerp(
-            height,
-            -24,
-            coast
-        );
-
-        return THREE.MathUtils.lerp(
-            -24,
-            height,
-            island
-        );
-    }
-
-    getGroundHeight(x, z) {
-        return this.getHeightAt(x, z);
-    }
-
-    // ==========================================
-    // BIOME
-    // ==========================================
-
-    ellipseMask(x, z, cx, cz, rx, rz) {
-        const dx = (x - cx) / rx;
-        const dz = (z - cz) / rz;
-
-        const distortion =
-            this.noise(x + cx, z + cz) * 0.10;
-
-        const distance =
-            Math.sqrt(dx * dx + dz * dz) + distortion;
-
-        return 1 - this.smoothstep(
-            0.82,
-            1.08,
-            distance
-        );
-    }
-
     getBiomeAt(x, z) {
-        const desert = this.ellipseMask(
-            x, z, 155, 105, 88, 75
-        );
+        const distance = (biome) => {
+            const dx = (x - biome.x) / biome.rx;
+            const dz = (z - biome.z) / biome.rz;
+            return Math.sqrt(dx * dx + dz * dz);
+        };
 
-        const ice = this.ellipseMask(
-            x, z, -125, -175, 80, 67
-        );
-
-        const jungle = this.ellipseMask(
-            x, z, -190, 125, 58, 48
-        );
-
-        if (ice > 0.5) return "ice";
-        if (desert > 0.5) return "sand";
-        if (jungle > 0.5) return "jungle";
+        if (distance(this.biomes.desert) < 1) return "desert";
+        if (distance(this.biomes.ice) < 1) return "ice";
+        if (distance(this.biomes.jungle) < 1) return "jungle";
 
         return "grass";
     }
@@ -325,9 +113,224 @@ export class Welt {
         return this.getBiomeAt(x, z);
     }
 
-    // ==========================================
+    // -----------------------------------------
+    // FLÜSSE
+    // -----------------------------------------
+
+    createRivers() {
+        const s = this.scale;
+
+        return [
+            {
+                width: 17 * s,
+                depth: 5 * s,
+                points: [
+                    [-270 * s, -260 * s],
+                    [-220 * s, -190 * s],
+                    [-150 * s, -120 * s],
+                    [-80 * s, -55 * s],
+                    [0, 10 * s],
+                    [85 * s, 70 * s],
+                    [170 * s, 135 * s],
+                    [260 * s, 230 * s]
+                ]
+            },
+            {
+                width: 10 * s,
+                depth: 3.5 * s,
+                points: [
+                    [-210 * s, 110 * s],
+                    [-145 * s, 85 * s],
+                    [-90 * s, 55 * s],
+                    [-25 * s, 20 * s],
+                    [0, 10 * s]
+                ]
+            },
+            {
+                width: 9 * s,
+                depth: 3 * s,
+                points: [
+                    [120 * s, -240 * s],
+                    [105 * s, -170 * s],
+                    [85 * s, -100 * s],
+                    [85 * s, 70 * s]
+                ]
+            }
+        ];
+    }
+
+    distanceToSegment(px, pz, ax, az, bx, bz) {
+        const dx = bx - ax;
+        const dz = bz - az;
+
+        const lengthSquared = dx * dx + dz * dz;
+
+        if (lengthSquared === 0) {
+            return Math.hypot(px - ax, pz - az);
+        }
+
+        let t = ((px - ax) * dx + (pz - az) * dz) / lengthSquared;
+        t = Math.max(0, Math.min(1, t));
+
+        const x = ax + t * dx;
+        const z = az + t * dz;
+
+        return Math.hypot(px - x, pz - z);
+    }
+
+    getRiverData(x, z) {
+        let strongest = 0;
+        let riverDepth = 0;
+
+        for (const river of this.rivers) {
+            for (let i = 0; i < river.points.length - 1; i++) {
+                const a = river.points[i];
+                const b = river.points[i + 1];
+
+                const distance = this.distanceToSegment(
+                    x, z,
+                    a[0], a[1],
+                    b[0], b[1]
+                );
+
+                const normalized = distance / river.width;
+
+                const influence = 1 - THREE.MathUtils.smoothstep(
+                    normalized,
+                    0.55,
+                    1.8
+                );
+
+                if (influence > strongest) {
+                    strongest = influence;
+                    riverDepth = river.depth;
+                }
+            }
+        }
+
+        return {
+            mask: strongest,
+            depth: riverDepth
+        };
+    }
+
+    // -----------------------------------------
+    // NATÜRLICHE LANDSCHAFT
+    // -----------------------------------------
+
+    noise(x, z) {
+        const value = Math.sin(x * 0.013 + this.seed) *
+            Math.cos(z * 0.017 - this.seed * 0.5);
+
+        const detail = Math.sin(x * 0.037 + z * 0.021) *
+            Math.cos(z * 0.031 - x * 0.019);
+
+        return value * 0.65 + detail * 0.35;
+    }
+
+    smoothNoise(x, z, scale) {
+        const sx = x * scale;
+        const sz = z * scale;
+
+        const ix = Math.floor(sx);
+        const iz = Math.floor(sz);
+
+        const fx = sx - ix;
+        const fz = sz - iz;
+
+        const fade = (t) => t * t * (3 - 2 * t);
+
+        const a = this.noise(ix, iz);
+        const b = this.noise(ix + 1, iz);
+        const c = this.noise(ix, iz + 1);
+        const d = this.noise(ix + 1, iz + 1);
+
+        const u = fade(fx);
+        const v = fade(fz);
+
+        const top = THREE.MathUtils.lerp(a, b, u);
+        const bottom = THREE.MathUtils.lerp(c, d, u);
+
+        return THREE.MathUtils.lerp(top, bottom, v);
+    }
+
+    getHeightAt(x, z) {
+        const normalizedX = x / this.halfSize;
+        const normalizedZ = z / this.halfSize;
+
+        const distance = Math.sqrt(
+            normalizedX * normalizedX +
+            normalizedZ * normalizedZ
+        );
+
+        // Sanft abfallende Küsten
+        const coast = 1 - THREE.MathUtils.smoothstep(
+            distance,
+            0.72,
+            1.0
+        );
+
+        if (coast <= 0) return -12;
+
+        // Große Landschaftsformen
+        const broadHills =
+            this.smoothNoise(x, z, 0.00065) * 23 +
+            this.smoothNoise(x + 800, z - 400, 0.0015) * 12;
+
+        // Kleinere natürliche Unebenheiten
+        const smallHills =
+            this.smoothNoise(x + 1500, z + 900, 0.005) * 5 +
+            this.smoothNoise(x - 300, z + 600, 0.013) * 1.5;
+
+        // Einige höhere Gebiete
+        const mountainRegion = Math.max(
+            0,
+            this.smoothNoise(x - 300, z - 700, 0.0009)
+        );
+
+        const mountains = Math.pow(mountainRegion, 2) * 27;
+
+        let height = 15 + broadHills + smallHills + mountains;
+
+        // Landschaft zur Küste absenken
+        height *= coast;
+
+        // Flusstäler in die Landschaft schneiden
+        const river = this.getRiverData(x, z);
+
+        height -= river.mask * river.depth;
+
+        // Flussufer etwas weicher gestalten
+        height -= river.mask * 1.5;
+
+        return height;
+    }
+
+    getGroundHeight(x, z) {
+        return this.getHeightAt(x, z);
+    }
+
+    getSlopeAt(x, z) {
+        const step = 2;
+
+        const h1 = this.getHeightAt(x + step, z);
+        const h2 = this.getHeightAt(x - step, z);
+        const h3 = this.getHeightAt(x, z + step);
+        const h4 = this.getHeightAt(x, z - step);
+
+        const dx = (h1 - h2) / (step * 2);
+        const dz = (h3 - h4) / (step * 2);
+
+        return Math.sqrt(dx * dx + dz * dz);
+    }
+
+    isInsideWorld(x, z) {
+        return Math.hypot(x, z) < this.halfSize;
+    }
+
+    // -----------------------------------------
     // TERRAIN ERSTELLEN
-    // ==========================================
+    // -----------------------------------------
 
     createTerrain() {
         const geometry = new THREE.PlaneGeometry(
@@ -345,89 +348,43 @@ export class Welt {
             const x = positions.getX(i);
             const z = positions.getZ(i);
 
-            positions.setY(
-                i,
-                this.getHeightAt(x, z)
-            );
+            positions.setY(i, this.getHeightAt(x, z));
         }
 
         positions.needsUpdate = true;
-
         geometry.computeVertexNormals();
 
-        this.material = this.createTerrainMaterial();
-
-        this.terrain = new THREE.Mesh(
-            geometry,
-            this.material
-        );
-
-        this.terrain.name = "CUBE_WARS_WORLD";
-        this.terrain.receiveShadow = true;
-        this.terrain.castShadow = false;
-
-        this.scene.add(this.terrain);
-    }
-
-    // ==========================================
-    // TEXTUR-SHADER
-    // ==========================================
-
-    createTerrainMaterial() {
-        const material = new THREE.MeshStandardMaterial({
+        this.material = new THREE.MeshStandardMaterial({
             color: 0xffffff,
             roughness: 1,
             metalness: 0
         });
 
-        material.onBeforeCompile = (shader) => {
-            shader.uniforms.grassMap = {
-                value: this.textures.grass
-            };
+        this.material.onBeforeCompile = (shader) => {
+            shader.uniforms.grassMap = { value: this.textures.grass };
+            shader.uniforms.stoneMap = { value: this.textures.stone };
+            shader.uniforms.sandMap = { value: this.textures.sand };
+            shader.uniforms.iceMap = { value: this.textures.ice };
+            shader.uniforms.jungleMap = { value: this.textures.jungle };
 
-            shader.uniforms.stoneMap = {
-                value: this.textures.stone
-            };
-
-            shader.uniforms.sandMap = {
-                value: this.textures.sand
-            };
-
-            shader.uniforms.iceMap = {
-                value: this.textures.ice
-            };
-
-            shader.uniforms.jungleMap = {
-                value: this.textures.jungle
-            };
-
-            // Vertex-Shader
             shader.vertexShader = shader.vertexShader.replace(
                 "#include <common>",
                 `
                 #include <common>
-
-                varying vec3 vWorldPosition;
+                varying vec3 vTerrainWorldPosition;
                 varying vec3 vTerrainNormal;
                 `
             );
 
-            // WICHTIG:
-            // worldPosition wird vom Three.js-Shader bereits erzeugt.
-            // Wir verwenden diese Variable nur, statt sie doppelt anzulegen.
             shader.vertexShader = shader.vertexShader.replace(
                 "#include <worldpos_vertex>",
                 `
                 #include <worldpos_vertex>
-
-                vWorldPosition = worldPosition.xyz;
-                vTerrainNormal = normalize(
-                    mat3(modelMatrix) * normal
-                );
+                vTerrainWorldPosition = worldPosition.xyz;
+                vTerrainNormal = normalize(mat3(modelMatrix) * normal);
                 `
             );
 
-            // Fragment-Shader
             shader.fragmentShader = shader.fragmentShader.replace(
                 "#include <common>",
                 `
@@ -439,95 +396,13 @@ export class Welt {
                 uniform sampler2D iceMap;
                 uniform sampler2D jungleMap;
 
-                varying vec3 vWorldPosition;
+                varying vec3 vTerrainWorldPosition;
                 varying vec3 vTerrainNormal;
 
-                float terrainNoise(vec2 p) {
-                    return
-                        sin(p.x * 0.018 + p.y * 0.009) * 0.42 +
-                        cos(p.y * 0.025 - p.x * 0.013) * 0.30 +
-                        sin((p.x + p.y) * 0.042) * 0.16;
-                }
-
-                float terrainEllipse(
-                    vec2 p,
-                    vec2 center,
-                    vec2 radius
-                ) {
+                float biomeMask(vec2 p, vec2 center, vec2 radius) {
                     vec2 d = (p - center) / radius;
-
-                    float distortion =
-                        terrainNoise(p + center) * 0.10;
-
-                    float distanceValue =
-                        length(d) + distortion;
-
-                    return 1.0 - smoothstep(
-                        0.82,
-                        1.08,
-                        distanceValue
-                    );
-                }
-
-                float terrainIslandDistance(vec2 p) {
-                    float angle = atan(p.y, p.x);
-
-                    float irregularity =
-                        1.0 +
-                        sin(angle * 5.0 + 1.2) * 0.055 +
-                        cos(angle * 9.0 - 0.8) * 0.035 +
-                        sin(angle * 13.0 + 2.4) * 0.018;
-
-                    vec2 d = vec2(
-                        p.x / 273.0,
-                        p.y / 261.0
-                    );
-
-                    return length(d) / irregularity;
-                }
-
-                float riverMask(vec2 p) {
-                    float mainPath =
-                        sin(p.x * 0.008) * 48.0 +
-                        sin(p.x * 0.019) * 12.0 -
-                        25.0;
-
-                    float branchPath =
-                        -sin((p.x + 90.0) * 0.009) * 34.0 +
-                        105.0;
-
-                    float smallPath =
-                        sin((p.x - 110.0) * 0.014) * 19.0 -
-                        135.0;
-
-                    float mainRiver =
-                        1.0 - smoothstep(
-                            4.0,
-                            17.0,
-                            abs(p.y - mainPath)
-                        );
-
-                    float branchRiver =
-                        1.0 - smoothstep(
-                            3.0,
-                            11.0,
-                            abs(p.y - branchPath)
-                        );
-
-                    float smallRiver =
-                        1.0 - smoothstep(
-                            2.5,
-                            8.0,
-                            abs(p.y - smallPath)
-                        );
-
-                    return max(
-                        mainRiver,
-                        max(
-                            branchRiver * 0.8,
-                            smallRiver * 0.65
-                        )
-                    );
+                    float dist = length(d);
+                    return 1.0 - smoothstep(0.78, 1.18, dist);
                 }
                 `
             );
@@ -535,124 +410,77 @@ export class Welt {
             shader.fragmentShader = shader.fragmentShader.replace(
                 "#include <map_fragment>",
                 `
-                // Weltkoordinaten statt kleiner UV-Flächen.
-                vec2 worldXZ = vWorldPosition.xz;
+                vec2 terrainUV = vTerrainWorldPosition.xz * 0.004;
 
-                // Kleinere Zahl = größere Texturmuster.
-                vec2 worldUV = worldXZ * 0.010;
+                vec4 grassColor = texture2D(grassMap, terrainUV);
+                vec4 stoneColor = texture2D(stoneMap, terrainUV * 1.15);
+                vec4 sandColor = texture2D(sandMap, terrainUV * 0.9);
+                vec4 iceColor = texture2D(iceMap, terrainUV);
+                vec4 jungleColor = texture2D(jungleMap, terrainUV * 1.1);
 
-                vec3 grassColor = texture2D(
-                    grassMap,
-                    worldUV
-                ).rgb;
+                float slope = 1.0 - max(dot(
+                    normalize(vTerrainNormal),
+                    vec3(0.0, 1.0, 0.0)
+                ), 0.0);
 
-                vec3 stoneColor = texture2D(
-                    stoneMap,
-                    worldUV * 0.95
-                ).rgb;
+                float rockMask = smoothstep(0.28, 0.65, slope);
 
-                vec3 sandColor = texture2D(
-                    sandMap,
-                    worldUV
-                ).rgb;
+                vec2 p = vTerrainWorldPosition.xz;
 
-                vec3 iceColor = texture2D(
-                    iceMap,
-                    worldUV
-                ).rgb;
-
-                vec3 jungleColor = texture2D(
-                    jungleMap,
-                    worldUV
-                ).rgb;
-
-                // Biome
-                float desertMask = terrainEllipse(
-                    worldXZ,
-                    vec2(155.0, 105.0),
-                    vec2(88.0, 75.0)
+                float desertMask = biomeMask(
+                    p,
+                    vec2(${this.biomes.desert.x}, ${this.biomes.desert.z}),
+                    vec2(${this.biomes.desert.rx}, ${this.biomes.desert.rz})
                 );
 
-                float iceMask = terrainEllipse(
-                    worldXZ,
-                    vec2(-125.0, -175.0),
-                    vec2(80.0, 67.0)
+                float iceMask = biomeMask(
+                    p,
+                    vec2(${this.biomes.ice.x}, ${this.biomes.ice.z}),
+                    vec2(${this.biomes.ice.rx}, ${this.biomes.ice.rz})
                 );
 
-                float jungleMask = terrainEllipse(
-                    worldXZ,
-                    vec2(-190.0, 125.0),
-                    vec2(58.0, 48.0)
+                float jungleMask = biomeMask(
+                    p,
+                    vec2(${this.biomes.jungle.x}, ${this.biomes.jungle.z}),
+                    vec2(${this.biomes.jungle.rx}, ${this.biomes.jungle.rz})
                 );
 
-                vec3 terrainColor = grassColor;
+                float beachMask = 1.0 - smoothstep(
+                    1.0,
+                    5.0,
+                    vTerrainWorldPosition.y
+                );
+
+                vec3 terrainColor = grassColor.rgb;
 
                 terrainColor = mix(
                     terrainColor,
-                    sandColor,
-                    smoothstep(0.0, 0.08, desertMask)
+                    sandColor.rgb,
+                    desertMask
                 );
 
                 terrainColor = mix(
                     terrainColor,
-                    iceColor,
-                    smoothstep(0.0, 0.08, iceMask)
+                    iceColor.rgb,
+                    iceMask
                 );
 
                 terrainColor = mix(
                     terrainColor,
-                    jungleColor,
-                    smoothstep(0.0, 0.08, jungleMask)
-                );
-
-                // Strand an der Küste
-                float islandDistance =
-                    terrainIslandDistance(worldXZ);
-
-                float beachMask =
-                    smoothstep(0.78, 0.91, islandDistance) *
-                    (1.0 - smoothstep(0.94, 1.015, islandDistance));
-
-                terrainColor = mix(
-                    terrainColor,
-                    sandColor,
-                    beachMask * 0.9
-                );
-
-                // Flussbetten erhalten einen sandigen Untergrund.
-                float river = riverMask(worldXZ);
-
-                terrainColor = mix(
-                    terrainColor,
-                    sandColor,
-                    river * 0.85
-                );
-
-                // Felsige Hänge.
-                float slope = 1.0 - abs(vTerrainNormal.y);
-
-                float rockMask = smoothstep(
-                    0.28,
-                    0.72,
-                    slope
-                );
-
-                // Nur ein leichter Steinanteil auf hohen Flächen.
-                float highLand = smoothstep(
-                    24.0,
-                    48.0,
-                    vWorldPosition.y
-                );
-
-                rockMask = max(
-                    rockMask,
-                    highLand * 0.35
+                    jungleColor.rgb,
+                    jungleMask
                 );
 
                 terrainColor = mix(
                     terrainColor,
-                    stoneColor,
+                    stoneColor.rgb,
                     rockMask
+                );
+
+                terrainColor = mix(
+                    terrainColor,
+                    sandColor.rgb,
+                    beachMask * 0.85
                 );
 
                 diffuseColor.rgb *= terrainColor;
@@ -660,20 +488,26 @@ export class Welt {
             );
         };
 
-        material.customProgramCacheKey = () =>
-            "cube-wars-natural-terrain-v4";
+        this.terrain = new THREE.Mesh(
+            geometry,
+            this.material
+        );
 
-        return material;
+        this.terrain.name = "CubeWars_Terrain";
+        this.terrain.receiveShadow = true;
+        this.terrain.castShadow = true;
+
+        this.scene.add(this.terrain);
     }
 
-    // ==========================================
-    // MEER
-    // ==========================================
+    // -----------------------------------------
+    // OZEAN
+    // -----------------------------------------
 
     createOcean() {
         const geometry = new THREE.PlaneGeometry(
-            2000,
-            2000,
+            this.size * 3,
+            this.size * 3,
             1,
             1
         );
@@ -681,9 +515,9 @@ export class Welt {
         geometry.rotateX(-Math.PI / 2);
 
         const material = new THREE.MeshStandardMaterial({
-            color: 0x267fa3,
+            color: 0x1688bd,
             roughness: 0.28,
-            metalness: 0.12
+            metalness: 0.05
         });
 
         this.ocean = new THREE.Mesh(
@@ -691,57 +525,38 @@ export class Welt {
             material
         );
 
-        this.ocean.name = "CUBE_WARS_OCEAN";
-        this.ocean.position.y = -24;
+        this.ocean.name = "CubeWars_Ocean";
+        this.ocean.position.y = -12;
         this.ocean.receiveShadow = true;
 
         this.scene.add(this.ocean);
     }
 
-    // ==========================================
-    // ZUGRIFF
-    // ==========================================
+    // -----------------------------------------
+    // ZUGRIFF AUF DAS TERRAIN
+    // -----------------------------------------
 
     getTerrain() {
         return this.terrain;
     }
 
-    getSlopeAt(x, z) {
-        const step = 2;
-
-        const left = this.getHeightAt(x - step, z);
-        const right = this.getHeightAt(x + step, z);
-
-        const back = this.getHeightAt(x, z - step);
-        const front = this.getHeightAt(x, z + step);
-
-        const dx = (right - left) / (step * 2);
-        const dz = (front - back) / (step * 2);
-
-        return Math.sqrt(dx * dx + dz * dz);
-    }
-
-    // ==========================================
+    // -----------------------------------------
     // AUFRÄUMEN
-    // ==========================================
+    // -----------------------------------------
 
     destroy() {
         if (this.terrain) {
             this.scene.remove(this.terrain);
-
             this.terrain.geometry.dispose();
             this.terrain.material.dispose();
         }
 
         if (this.ocean) {
             this.scene.remove(this.ocean);
-
             this.ocean.geometry.dispose();
             this.ocean.material.dispose();
         }
 
-        for (const texture of Object.values(this.textures)) {
-            texture.dispose();
-        }
+        console.log("Welt entfernt.");
     }
 }
